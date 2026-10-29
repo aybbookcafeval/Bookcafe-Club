@@ -289,27 +289,6 @@ export default function App() {
   };
 
   /**
-   * Simula un registro entrante desde un Webhook (ej: formulario online o n8n)
-   */
-  const handleSimulateWebhook = () => {
-    const newMember = generateWebhookDummy(afiliados.length);
-    setAfiliados((prev) => [newMember, ...prev]);
-
-    // Simular recepción de webhook en consola
-    console.log(
-      '%c[Webhook n8n - INCOMING REGISTRATION: club_infantil.new_lead]',
-      'color: #6366f1; font-weight: bold;',
-      newMember
-    );
-
-    setToast({
-      type: 'webhook',
-      title: 'Nuevo Afiliado desde Webhook (n8n)',
-      message: `Se recibió registro de ${newMember.nombreNino} (${newMember.codigo}). Estado: PENDIENTE de pago en Caja.`
-    });
-  };
-
-  /**
    * Navega desde el Scanner a Caja con el código preseleccionado
    */
   const handleSwitchToCaja = (code) => {
@@ -485,7 +464,6 @@ export default function App() {
           <AdminPanel
             afiliados={afiliados}
             onApprovePayment={handleApprovePayment}
-            onSimulateWebhook={handleSimulateWebhook}
             initialFilterCode={targetCodeForAdmin}
             onViewChildProfile={handleViewChildProfile}
             memberships={memberships}

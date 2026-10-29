@@ -29,7 +29,8 @@ import {
   FileText,
   Eye,
   Clock,
-  Building2
+  Building2,
+  MessageCircle
 } from 'lucide-react';
 import { 
   calculateAge, 
@@ -46,7 +47,6 @@ import PaymentReceiptModal from './PaymentReceiptModal.jsx';
 export default function AdminPanel({
   afiliados,
   onApprovePayment,
-  onSimulateWebhook,
   initialFilterCode = '',
   onViewChildProfile,
   memberships = []
@@ -290,15 +290,29 @@ export default function AdminPanel({
             </div>
           </div>
 
-          {/* Botón Simular Webhook (Requerimiento explícito) */}
-          <button
-            type="button"
-            onClick={onSimulateWebhook}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-corporate-600 hover:bg-corporate-700 active:bg-corporate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
-          >
-            <Webhook className="w-4 h-4 text-corporate-200" />
-            <span>Simular registro desde Webhook</span>
-          </button>
+          {/* Botones Tally y WhatsApp */}
+          <div className="flex items-center gap-2">
+            <a
+              href="https://tally.so/r/2jjW1V"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
+              title="Abrir formulario de registro Tally"
+            >
+              <FileText className="w-4 h-4 text-emerald-400" />
+              <span>Formulario Tally</span>
+            </a>
+            <a
+              href={`https://api.whatsapp.com/send?text=${encodeURIComponent('¡Hola! Regístrate en el Club Infantil a través de nuestro formulario oficial: https://tally.so/r/2jjW1V')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
+              title="Enviar link por WhatsApp"
+            >
+              <MessageCircle className="w-4 h-4 text-emerald-200" />
+              <span>Enviar WhatsApp</span>
+            </a>
+          </div>
         </div>
       </div>
 

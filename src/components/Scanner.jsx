@@ -53,14 +53,6 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
     setHasSearched(true);
   };
 
-  const handleQuickLookup = (code) => {
-    setSearchTerm(code);
-    const cleanQuery = normalize(code);
-    const found = afiliados.find((af) => normalize(af.codigo) === cleanQuery);
-    setSearchedMember(found || null);
-    setHasSearched(true);
-  };
-
   const handleClear = () => {
     setSearchTerm('');
     setSearchedMember(null);
@@ -119,39 +111,6 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
           >
             <Search className="w-4 h-4" />
             <span>Consultar</span>
-          </button>
-        </div>
-
-        {/* Botones de prueba rápida para meseros */}
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-neutral-600">
-          <span className="font-semibold text-neutral-700">Pruebas rápidas:</span>
-          <button
-            type="button"
-            onClick={() => handleQuickLookup('KID-101')}
-            className="px-2.5 py-1 bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md font-medium transition-colors shadow-2xs"
-          >
-            KID-101 (Activa + Cumpleañero)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickLookup('KID-102')}
-            className="px-2.5 py-1 bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md font-medium transition-colors shadow-2xs"
-          >
-            KID-102 (Activa)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickLookup('KID-103')}
-            className="px-2.5 py-1 bg-white hover:bg-amber-50 border border-amber-200 text-amber-800 rounded-md font-medium transition-colors shadow-2xs"
-          >
-            KID-103 (Pendiente)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickLookup('KID-104')}
-            className="px-2.5 py-1 bg-white hover:bg-rose-50 border border-rose-200 text-rose-800 rounded-md font-medium transition-colors shadow-2xs"
-          >
-            KID-104 (Vencida)
           </button>
         </div>
       </form>
