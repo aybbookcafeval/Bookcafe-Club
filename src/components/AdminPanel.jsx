@@ -48,7 +48,8 @@ export default function AdminPanel({
   onApprovePayment,
   onSimulateWebhook,
   initialFilterCode = '',
-  onViewChildProfile
+  onViewChildProfile,
+  memberships = []
 }) {
   const [searchTerm, setSearchTerm] = useState(initialFilterCode || '');
   const [statusFilter, setStatusFilter] = useState('todas'); // 'todas' | 'activa' | 'pendiente' | 'vencida'
@@ -95,9 +96,11 @@ export default function AdminPanel({
     }
   ];
 
+  const defaultPriceUSD = memberships && memberships.length > 0 ? String(memberships[0].precioUSD || '10.00') : '10.00';
+
   // Modal de Registrar Pago
   const [selectedMember, setSelectedMember] = useState(null);
-  const [montoUSD, setMontoUSD] = useState('25.00'); // Monto base estándar en $ USD
+  const [montoUSD, setMontoUSD] = useState(defaultPriceUSD); // Monto base estándar en $ USD ($10.00)
   const [modalTasa, setModalTasa] = useState(String(tasaDolar)); // Tasa editable manualmente en el modal
   const [metodoPago, setMetodoPago] = useState('Pago Móvil');
   const [referenciaPago, setReferenciaPago] = useState('');
@@ -191,7 +194,7 @@ export default function AdminPanel({
 
   const openPaymentModal = (member) => {
     setSelectedMember(member);
-    setMontoUSD('25.00'); // Monto sugerido de membresía en $ USD
+    setMontoUSD(defaultPriceUSD); // Monto sugerido de membresía en $ USD
     setModalTasa(String(tasaDolar));
     setMetodoPago('Pago Móvil');
     setReferenciaPago('');

@@ -29,6 +29,52 @@ const hace5Dias = addDays(today, -5);
 export const DEFAULT_TASA_DOLAR = 65.0; // Tasa referencial por defecto en Bs. por cada $1 USD
 export const TASA_STORAGE_KEY = 'club_infantil_tasa_dolar';
 
+// Configuración de Membresías predeterminada (1 membresía activa con valor de $10 USD)
+export const DEFAULT_MEMBERSHIP_CONFIG = [
+  {
+    id: 'mem-vip-10',
+    nombre: 'Membresía Oficial Club Infantil',
+    codigo: 'VIP-10USD',
+    precioUSD: 10.0,
+    duracionDias: 30,
+    estado: 'activa',
+    moneda: 'USD',
+    descripcion: 'Membresía estándar de $10 USD mensuales para niños socios del club con beneficios en restaurante y zona recreativa.',
+    beneficios: [
+      'Acceso libre e ilimitado al Área de Juegos Inflables',
+      'Helado o postre infantil de cortesía en cada consumo familiar',
+      'Carnet Oficial Vertical con foto de perfil',
+      '10% de descuento en reserva de Fiestas y Cumpleaños',
+      'Atención preferencial y asignación de mesa en restaurante'
+    ]
+  }
+];
+
+export const MEMBERSHIP_STORAGE_KEY = 'club_infantil_memberships';
+
+export const getMembershipsFromStorage = () => {
+  try {
+    const data = localStorage.getItem(MEMBERSHIP_STORAGE_KEY);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Error al leer membresías de localStorage:', e);
+  }
+  return DEFAULT_MEMBERSHIP_CONFIG;
+};
+
+export const saveMembershipsToStorage = (memberships) => {
+  try {
+    localStorage.setItem(MEMBERSHIP_STORAGE_KEY, JSON.stringify(memberships));
+  } catch (e) {
+    console.error('Error al guardar membresías en localStorage:', e);
+  }
+};
+
 // Galería de fotos y avatares predeterminados para niños del Club Infantil
 export const PRESET_AVATARS = [
   { 

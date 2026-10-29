@@ -15,16 +15,22 @@ import {
   ChefHat,
   X,
   Bell,
-  Users
+  Users,
+  Settings
 } from 'lucide-react';
 import Scanner from './components/Scanner.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
 import ChildProfileCRUD from './components/ChildProfileCRUD.jsx';
+import AdminSettings from './components/AdminSettings.jsx';
 import { 
   getAfiliadosFromStorage, 
   saveAfiliadosToStorage, 
   generateWebhookDummy, 
-  INITIAL_AFILIADOS 
+  INITIAL_AFILIADOS,
+  getMembershipsFromStorage,
+  saveMembershipsToStorage,
+  getTasaDolarFromStorage,
+  saveTasaDolarToStorage
 } from './mockData.js';
 
 export default function App() {
@@ -33,6 +39,12 @@ export default function App() {
   
   // Estado global de afiliados cargado desde localStorage
   const [afiliados, setAfiliados] = useState(() => getAfiliadosFromStorage());
+
+  // Estado global de tipos de membresías cargado desde localStorage
+  const [memberships, setMemberships] = useState(() => getMembershipsFromStorage());
+
+  // Estado de tasa referencial del dólar
+  const [tasaDolar, setTasaDolar] = useState(() => getTasaDolarFromStorage());
 
   // Estado para pre-filtrar o saltar a un afiliado al cambiar de pestaña
   const [targetCodeForAdmin, setTargetCodeForAdmin] = useState('');
@@ -47,6 +59,20 @@ export default function App() {
   useEffect(() => {
     saveAfiliadosToStorage(afiliados);
   }, [afiliados]);
+
+  // Guardar en localStorage cada vez que cambien las membresías
+  useEffect(() => {
+    saveMembershipsToStorage(memberships);
+  }, [memberships]);
+
+  const handleSaveMemberships = (newMemberships) => {
+    setMemberships(newMemberships);
+  };
+
+  const handleUpdateTasa = (newTasa) => {
+    setTasaDolar(newTasa);
+    saveTasaDolarToStorage(newTasa);
+  };
 
   // Limpiar toast automáticamente
   useEffect(() => {
@@ -310,6 +336,19 @@ export default function App() {
               <Users className="w-4 h-4 text-corporate-700" />
               <span>Miembros</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('config')}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                activeTab === 'config'
+                  ? 'bg-white text-corporate-900 shadow-xs'
+                  : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              <Settings className="w-4 h-4 text-corporate-700" />
+              <span>Configuración</span>
+            </button>
           </nav>
 
           {/* Zona 3: Acción primaria / Utilidad */}
@@ -343,6 +382,7 @@ export default function App() {
             onSimulateWebhook={handleSimulateWebhook}
             initialFilterCode={targetCodeForAdmin}
             onViewChildProfile={handleViewChildProfile}
+            memberships={memberships}
           />
         )}
         {activeTab === 'fichas' && (
@@ -352,6 +392,15 @@ export default function App() {
             onDeleteMember={handleDeleteMember}
             onOpenPayment={handleSwitchToCaja}
             initialSelectedId={targetIdForFicha}
+          />
+        )}
+        {activeTab === 'config' && (
+          <AdminSettings
+            memberships={memberships}
+            onSaveMemberships={handleSaveMemberships}
+            tasaDolar={tasaDolar}
+            onUpdateTasa={handleUpdateTasa}
+            onShowToast={(t) => setToast(t)}
           />
         )}
       </main>
