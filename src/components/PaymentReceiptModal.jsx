@@ -30,7 +30,11 @@ export default function PaymentReceiptModal({ transaction, member, onClose }) {
   if (!transaction || !member) return null;
 
   const handlePrintReceipt = () => {
+    document.body.classList.add('printing-receipt');
     window.print();
+    setTimeout(() => {
+      document.body.classList.remove('printing-receipt');
+    }, 500);
   };
 
   const isBsMethod = ['Pago Móvil', 'Tarjeta', 'Transferencia'].includes(transaction.metodoPago);
@@ -79,6 +83,10 @@ export default function PaymentReceiptModal({ transaction, member, onClose }) {
             <div className="flex items-center justify-center gap-2 text-2xs font-mono text-neutral-500 pt-0.5">
               <span className="bg-neutral-100 px-2 py-0.5 rounded font-bold text-neutral-800">
                 ID: {transaction.id || 'TXN-0000'}
+              </span>
+              <span>·</span>
+              <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded font-bold">
+                Factura: {transaction.numeroFactura || 'FAC-0000'}
               </span>
               <span>·</span>
               <span className="flex items-center gap-1">
@@ -154,6 +162,13 @@ export default function PaymentReceiptModal({ transaction, member, onClose }) {
           <div className="space-y-2 border border-neutral-200 rounded-2xl p-4 bg-white">
             <div className="text-2xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
               Desglose Financiero de la Transacción
+            </div>
+
+            <div className="flex justify-between items-center py-1 border-b border-neutral-100">
+              <span className="text-neutral-600">Número de Factura Fiscal/POS:</span>
+              <span className="font-mono font-black text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200">
+                {transaction.numeroFactura || 'FAC-2026-001'}
+              </span>
             </div>
 
             <div className="flex justify-between items-center py-1 border-b border-neutral-100">

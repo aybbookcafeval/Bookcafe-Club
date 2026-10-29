@@ -104,6 +104,7 @@ export default function AdminPanel({
   const [modalTasa, setModalTasa] = useState(String(tasaDolar)); // Tasa editable manualmente en el modal
   const [metodoPago, setMetodoPago] = useState('Pago Móvil');
   const [referenciaPago, setReferenciaPago] = useState('');
+  const [numeroFactura, setNumeroFactura] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modo de pestaña en el módulo de pagos: 'cobros' | 'historial_general'
@@ -157,6 +158,7 @@ export default function AdminPanel({
         (member.tutorNombre || '').toLowerCase().includes(term) ||
         (member.tutorCedula || '').toLowerCase().includes(term) ||
         (transaction.referenciaPago || '').toLowerCase().includes(term) ||
+        (transaction.numeroFactura || '').toLowerCase().includes(term) ||
         (transaction.concepto || '').toLowerCase().includes(term)
       );
     });
@@ -178,8 +180,9 @@ export default function AdminPanel({
     const matchCedula = (af.tutorCedula || '').toLowerCase().includes(term);
     const matchTel = af.tutorTelefono.toLowerCase().includes(term);
     const matchRef = (af.referenciaPago || '').toLowerCase().includes(term);
+    const matchFac = (af.numeroFactura || '').toLowerCase().includes(term);
 
-    return matchCodigo || matchNino || matchTutor || matchCedula || matchTel || matchRef;
+    return matchCodigo || matchNino || matchTutor || matchCedula || matchTel || matchRef || matchFac;
   });
 
   // Métricas globales en Dólar Americano ($ USD)
@@ -198,11 +201,13 @@ export default function AdminPanel({
     setModalTasa(String(tasaDolar));
     setMetodoPago('Pago Móvil');
     setReferenciaPago('');
+    setNumeroFactura(`FAC-2026-${Math.floor(100 + Math.random() * 900)}`);
   };
 
   const closePaymentModal = () => {
     setSelectedMember(null);
     setReferenciaPago('');
+    setNumeroFactura('');
     setIsSubmitting(false);
   };
 
@@ -232,16 +237,22 @@ export default function AdminPanel({
       return;
     }
 
+    if (!numeroFactura.trim()) {
+      alert('Por favor ingresa el número de factura.');
+      return;
+    }
+
     // Actualizar y recordar la tasa editada manualmente para futuros cobros
     setTasaDolar(parsedModalTasa);
     saveTasaDolarToStorage(parsedModalTasa);
 
     setIsSubmitting(true);
 
-    // Se guarda estrictamente en USD, pasando los detalles de conversión y referencia
+    // Se guarda estrictamente en USD, pasando los detalles de conversión, referencia y factura
     onApprovePayment(selectedMember.id, parsedMontoUSD, { 
       metodo: metodoPago, 
       referencia: referenciaPago.trim(),
+      numeroFactura: numeroFactura.trim(),
       tasaCambio: parsedModalTasa,
       montoBs: calculadoBs
     });
@@ -694,6 +705,7 @@ export default function AdminPanel({
                   <tr>
                     <th className="py-3 px-4">Fecha / Hora</th>
                     <th className="py-3 px-4">Nro. Transacción</th>
+                    <th className="py-3 px-4">Nº Factura</th>
                     <th className="py-3 px-4">Socio Niño</th>
                     <th className="py-3 px-4">Representante</th>
                     <th className="py-3 px-4">Método & Referencia</th>
@@ -723,6 +735,13 @@ export default function AdminPanel({
                           <td className="py-3 px-4 font-mono font-bold text-neutral-700 whitespace-nowrap">
                             <span className="bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded text-2xs">
                               {transaction.id}
+                            </span>
+                          </td>
+
+                          {/* Nº Factura */}
+                          <td className="py-3 px-4 font-mono font-bold text-emerald-900 whitespace-nowrap">
+                            <span className="bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-2xs">
+                              {transaction.numeroFactura || 'FAC-2026-001'}
                             </span>
                           </td>
 
@@ -1007,6 +1026,24 @@ export default function AdminPanel({
                 </div>
               )}
 
+              {/* Campo: Número de Factura Fiscal / Control POS */}
+              <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3.5 space-y-1.5">
+                <label className="block text-xs font-bold text-neutral-800 uppercase tracking-wide">
+                  Número de Factura Fiscal / POS *
+                </label>
+                <input
+                  type="text"
+                  value={numeroFactura}
+                  onChange={(e) => setNumeroFactura(e.target.value)}
+                  required
+                  placeholder="Ej: FAC-2026-0012"
+                  className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg font-mono text-sm font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-corporate-500"
+                />
+                <p className="text-2xs text-neutral-500">
+                  Número comprobante fiscal/recibo de caja emitido.
+                </p>
+              </div>
+
               {/* Campo: Número de Referencia (Obligatorio para Pago Móvil, Tarjeta, Transferencia, Sended) */}
               {METODOS_PAGO.find((m) => m.id === metodoPago)?.requiresRef && (
                 <div className="bg-amber-50/80 border border-amber-300 rounded-xl p-3.5 space-y-1.5 animate-in fade-in duration-150">
@@ -1127,6 +1164,9 @@ export default function AdminPanel({
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-2xs font-bold text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200">
                             {txn.id}
+                          </span>
+                          <span className="font-mono text-2xs font-bold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            {txn.numeroFactura || 'FAC-2026-001'}
                           </span>
                           <span className="text-2xs text-neutral-400 font-mono">
                             {txn.fecha} {txn.hora ? `· ${txn.hora}` : ''}

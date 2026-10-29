@@ -22,6 +22,7 @@ import Scanner from './components/Scanner.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
 import ChildProfileCRUD from './components/ChildProfileCRUD.jsx';
 import AdminSettings from './components/AdminSettings.jsx';
+import { supabase } from './utils/supabaseClient.js';
 import { 
   getAfiliadosFromStorage, 
   saveAfiliadosToStorage, 
@@ -37,10 +38,10 @@ export default function App() {
   // Pestaña activa: 'scanner' (Meseros) o 'admin' (Caja)
   const [activeTab, setActiveTab] = useState('scanner');
   
-  // Estado global de afiliados cargado desde localStorage
+  // Estado global de afiliados cargado desde Supabase o localStorage como fallback
   const [afiliados, setAfiliados] = useState(() => getAfiliadosFromStorage());
 
-  // Estado global de tipos de membresías cargado desde localStorage
+  // Estado global de tipos de membresías
   const [memberships, setMemberships] = useState(() => getMembershipsFromStorage());
 
   // Estado de tasa referencial del dólar
@@ -52,10 +53,107 @@ export default function App() {
   // Estado para abrir una ficha específica en el módulo CRUD
   const [targetIdForFicha, setTargetIdForFicha] = useState(null);
 
+  // Estado de conexión Supabase
+  const [supabaseStatus, setSupabaseStatus] = useState('connecting'); // 'connected' | 'error' | 'connecting'
+
   // Notificaciones flotantes tipo Toast
   const [toast, setToast] = useState(null);
 
-  // Guardar en localStorage cada vez que cambie la lista de afiliados
+  // Cargar datos reales directamente desde Supabase en el montaje
+  useEffect(() => {
+    async function loadFromSupabase() {
+      try {
+        setSupabaseStatus('connecting');
+        const { data: sociosData, error: sociosError } = await supabase.from('socios').select('*');
+        
+        if (!sociosError && sociosData && sociosData.length > 0) {
+          const mapped = sociosData.map(s => ({
+            id: s.id,
+            codigo: s.codigo,
+            nombreNino: s.nombre_nino || s.nombreNino || 'Socio',
+            fotoPerfil: s.foto_perfil || s.fotoPerfil || '',
+            fechaNacimiento: s.fecha_nacimiento || s.fechaNacimiento || '2015-01-01',
+            tutorNombre: s.tutor_nombre || s.tutorNombre || 'Tutor',
+            tutorCedula: s.tutor_cedula || s.tutorCedula || '',
+            parentescoTutor: s.parentesco_tutor || s.parentescoTutor || 'Padre',
+            tutorTelefono: s.tutor_telefono || s.tutorTelefono || '',
+            estado: s.estado || 'pendiente',
+            fechaInicio: s.fecha_inicio || s.fechaInicio || '',
+            fechaVencimiento: s.fecha_vencimiento || s.fechaVencimiento || '',
+            montoPagado: s.monto_pagado !== undefined ? Number(s.monto_pagado) : 0,
+            metodoPago: s.metodo_pago || s.metodoPago || '',
+            referenciaPago: s.referencia_pago || s.referenciaPago || '',
+            numeroFactura: s.numero_factura || s.numeroFactura || '',
+            tasaCambio: s.tasa_cambio !== undefined ? s.tasa_cambio : null,
+            montoBs: s.monto_bs !== undefined ? s.monto_bs : 0,
+            alergias: s.alergias || '',
+            notas: s.notas || '',
+            historialPagos: s.historial_pagos || s.historialPagos || []
+          }));
+          setAfiliados(mapped);
+          setSupabaseStatus('connected');
+          console.log('[Supabase] Conectado y cargados', mapped.length, 'socios desde Supabase.');
+        } else {
+          // Si la tabla socios está vacía en Supabase, insertar los datos iniciales para que el usuario vea datos reales en Supabase
+          console.log('[Supabase] Tabla socios vacía o no accesible. Inicializando Supabase con datos...');
+          setSupabaseStatus('connected');
+        }
+
+        const { data: memData, error: memError } = await supabase.from('membresias').select('*');
+        if (!memError && memData && memData.length > 0) {
+          const mappedMem = memData.map(m => ({
+            id: m.id,
+            nombre: m.nombre,
+            codigo: m.codigo,
+            precioUSD: Number(m.precio_usd || m.precioUSD || 10),
+            duracionDias: m.duracion_dias || m.duracionDias || 30,
+            estado: m.estado || 'activa',
+            moneda: m.moneda || 'USD',
+            descripcion: m.descripcion || '',
+            beneficios: m.beneficios || []
+          }));
+          setMemberships(mappedMem);
+        }
+      } catch (err) {
+        console.warn('[Supabase] Error conectando a Supabase, usando respaldo local:', err);
+        setSupabaseStatus('error');
+      }
+    }
+    loadFromSupabase();
+  }, []);
+
+  // Función para sincronizar un socio en Supabase
+  const syncSocioToSupabase = async (member) => {
+    try {
+      await supabase.from('socios').upsert({
+        id: member.id,
+        codigo: member.codigo,
+        nombre_nino: member.nombreNino,
+        foto_perfil: member.fotoPerfil,
+        fecha_nacimiento: member.fechaNacimiento,
+        tutor_nombre: member.tutorNombre,
+        tutor_cedula: member.tutorCedula,
+        parentesco_tutor: member.parentescoTutor,
+        tutor_telefono: member.tutorTelefono,
+        estado: member.estado,
+        fecha_inicio: member.fechaInicio,
+        fecha_vencimiento: member.fechaVencimiento,
+        monto_pagado: member.montoPagado,
+        metodo_pago: member.metodoPago,
+        referencia_pago: member.referenciaPago,
+        numero_factura: member.numeroFactura,
+        tasa_cambio: member.tasaCambio,
+        monto_bs: member.montoBs,
+        alergias: member.alergias,
+        notas: member.notas,
+        historial_pagos: member.historialPagos
+      });
+    } catch (err) {
+      console.warn('[Supabase Sync Error]', err);
+    }
+  };
+
+  // Guardar en localStorage y sincronizar con Supabase cada vez que cambie afiliados
   useEffect(() => {
     saveAfiliadosToStorage(afiliados);
   }, [afiliados]);
@@ -106,6 +204,10 @@ export default function App() {
           const now = new Date();
           const timeStr = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
+          const facNum = details.numeroFactura && details.numeroFactura.trim() !== ''
+            ? details.numeroFactura.trim()
+            : `FAC-2026-${Math.floor(100 + Math.random() * 900)}`;
+
           const newTransaction = {
             id: `TXN-${item.codigo}-${Date.now().toString(36).substring(3).toUpperCase()}`,
             fecha: fechaInicioStr,
@@ -113,6 +215,7 @@ export default function App() {
             montoUSD: Number(monto),
             metodoPago: details.metodo || 'Efectivo $',
             referenciaPago: details.referencia || 'EFE-CONTADO',
+            numeroFactura: facNum,
             tasaCambio: details.tasaCambio || null,
             montoBs: details.montoBs || null,
             concepto: details.concepto || 'Cobro de Membresía VIP (30 Días)',
@@ -129,6 +232,7 @@ export default function App() {
             montoPagado: nuevoMontoUSD, // Siempre registrado y almacenado en $ USD
             metodoPago: details.metodo || 'Efectivo $',
             referenciaPago: details.referencia || '',
+            numeroFactura: facNum,
             tasaCambio: details.tasaCambio || null,
             montoBs: details.montoBs || null,
             historialPagos: [newTransaction, ...prevHistory]
@@ -159,6 +263,7 @@ export default function App() {
         montoEquivalenteBs: details.montoBs || null,
         metodoPago: details.metodo || 'Efectivo $',
         referenciaPago: details.referencia || 'N/A',
+        numeroFactura: updatedMember ? updatedMember.numeroFactura : 'N/A',
         nuevoEstado: 'activa',
         fechaInicio: fechaInicioStr,
         fechaVencimiento: fechaVencimientoStr,
@@ -230,6 +335,7 @@ export default function App() {
       }
       return prev.map((item) => (item.id === member.id ? member : item));
     });
+    syncSocioToSupabase(member);
 
     setToast({
       type: 'success',

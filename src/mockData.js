@@ -136,6 +136,7 @@ export const INITIAL_AFILIADOS = [
     montoPagado: 25.0,
     metodoPago: 'Pago Móvil',
     referenciaPago: 'PM-894120',
+    numeroFactura: 'FAC-2026-001',
     tasaCambio: 65.0,
     montoBs: 1625.0,
     alergias: 'Ninguna conocida',
@@ -157,6 +158,7 @@ export const INITIAL_AFILIADOS = [
     montoPagado: 25.0,
     metodoPago: 'Tarjeta',
     referenciaPago: 'REF-4821',
+    numeroFactura: 'FAC-2026-002',
     tasaCambio: 65.0,
     montoBs: 1625.0,
     alergias: 'Intolerancia a la lactosa (leche deslactosada)',
@@ -178,6 +180,7 @@ export const INITIAL_AFILIADOS = [
     montoPagado: 0.0,
     metodoPago: '',
     referenciaPago: '',
+    numeroFactura: '',
     tasaCambio: null,
     montoBs: 0.0,
     alergias: 'Alergia severa al maní / cacahuate',
@@ -199,6 +202,7 @@ export const INITIAL_AFILIADOS = [
     montoPagado: 25.0,
     metodoPago: 'Transferencia',
     referenciaPago: 'TRF-0019284',
+    numeroFactura: 'FAC-2026-003',
     tasaCambio: 65.0,
     montoBs: 1625.0,
     alergias: 'Ninguna',
@@ -220,6 +224,7 @@ export const INITIAL_AFILIADOS = [
     montoPagado: 25.0,
     metodoPago: 'Sended',
     referenciaPago: 'SND-77123',
+    numeroFactura: 'FAC-2026-004',
     tasaCambio: 65.0,
     montoBs: 1625.0,
     alergias: 'Celiaquía (sin gluten)',
@@ -300,6 +305,7 @@ export const getAfiliadosFromStorage = () => {
             montoUSD,
             metodoPago: item.metodoPago || 'Pago Móvil',
             referenciaPago: item.referenciaPago || 'PM-894120',
+            numeroFactura: item.numeroFactura || `FAC-2026-${(idx + 1).toString().padStart(3, '0')}`,
             tasaCambio: tasa,
             montoBs,
             concepto: 'Membresía Oficial Club Infantil (30 Días)',
@@ -307,6 +313,12 @@ export const getAfiliadosFromStorage = () => {
           }
         ];
         changed = true;
+      } else if (history.length > 0) {
+        // Asegurar que cada ítem del historial tenga numeroFactura
+        history = history.map((h, hIdx) => ({
+          ...h,
+          numeroFactura: h.numeroFactura || `FAC-2026-${(idx + 1).toString().padStart(3, '0')}`
+        }));
       }
 
       if (item.montoPagado && Number(item.montoPagado) > 500) {
