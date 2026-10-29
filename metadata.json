@@ -1,0 +1,6 @@
+{
+  "name": "Club Infantil - Panel Operativo Restaurante",
+  "description": "Panel operativo de Club Infantil para restaurantes: validación rápida de beneficios para meseros y control de membresías y pagos para caja.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
