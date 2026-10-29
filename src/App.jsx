@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  QrCode, 
+  ShieldCheck, 
   CreditCard, 
   Sparkles, 
   CheckCircle, 
@@ -77,6 +77,24 @@ export default function App() {
       const updated = prev.map((item) => {
         if (item.id === id) {
           const nuevoMontoUSD = (Number(item.montoPagado) || 0) + Number(monto);
+          const now = new Date();
+          const timeStr = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+          const newTransaction = {
+            id: `TXN-${item.codigo}-${Date.now().toString(36).substring(3).toUpperCase()}`,
+            fecha: fechaInicioStr,
+            hora: timeStr,
+            montoUSD: Number(monto),
+            metodoPago: details.metodo || 'Efectivo $',
+            referenciaPago: details.referencia || 'EFE-CONTADO',
+            tasaCambio: details.tasaCambio || null,
+            montoBs: details.montoBs || null,
+            concepto: details.concepto || 'Cobro de Membresía VIP (30 Días)',
+            cajero: 'Caja Restaurante Principal'
+          };
+
+          const prevHistory = Array.isArray(item.historialPagos) ? item.historialPagos : [];
+
           updatedMember = {
             ...item,
             estado: 'activa',
@@ -86,7 +104,8 @@ export default function App() {
             metodoPago: details.metodo || 'Efectivo $',
             referenciaPago: details.referencia || '',
             tasaCambio: details.tasaCambio || null,
-            montoBs: details.montoBs || null
+            montoBs: details.montoBs || null,
+            historialPagos: [newTransaction, ...prevHistory]
           };
           return updatedMember;
         }
@@ -256,8 +275,8 @@ export default function App() {
                   : 'text-neutral-600 hover:text-neutral-900'
               }`}
             >
-              <QrCode className="w-4 h-4" />
-              <span>Meseros (Scanner)</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-700" />
+              <span>Validar con Código</span>
             </button>
 
             <button

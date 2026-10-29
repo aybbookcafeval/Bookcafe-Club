@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Users, 
   UserPlus, 
@@ -34,16 +34,22 @@ import {
   Heart,
   Camera,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  FileText,
+  History,
+  Receipt
 } from 'lucide-react';
 import { 
   isBirthdayThisMonth, 
   calculateAge, 
   checkIsActiveAndValid,
   getKidAvatar,
-  PRESET_AVATARS
+  PRESET_AVATARS,
+  formatUSD,
+  formatBs
 } from '../mockData.js';
 import CarnetModal from './CarnetModal.jsx';
+import PaymentReceiptModal from './PaymentReceiptModal.jsx';
 
 export default function ChildProfileCRUD({
   afiliados,
@@ -67,12 +73,88 @@ export default function ChildProfileCRUD({
   // Modal para Imprimir Carnet / Exportar PDF
   const [carnetMember, setCarnetMember] = useState(null);
 
+  // Modal para Ver Comprobante de Pago
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+
   // Modal para Crear / Editar Ficha
   const [editingMember, setEditingMember] = useState(null);
   const [isNewMember, setIsNewMember] = useState(false);
 
   // Modal de confirmación para eliminar
   const [deletingMember, setDeletingMember] = useState(null);
+
+  // Cámara en Vivo / Captura de Foto de Perfil
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+
+  // Iniciar la cámara del dispositivo
+  const startCamera = async () => {
+    setCameraError('');
+    setCapturedPhoto(null);
+    setShowCameraModal(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: { ideal: 640 }, height: { ideal: 640 }, facingMode: 'user' } 
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error('Error al acceder a la cámara:', err);
+      setCameraError('No se pudo acceder a la cámara en este dispositivo. Puedes usar la opción de subir desde archivos.');
+    }
+  };
+
+  // Detener y cerrar la cámara
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setShowCameraModal(false);
+    setCapturedPhoto(null);
+    setCameraError('');
+  };
+
+  // Tomar captura instantánea desde el feed de vídeo
+  const takeSnapshot = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    const size = Math.min(video.videoWidth || 400, video.videoHeight || 400);
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    
+    if (ctx) {
+      const sx = (video.videoWidth - size) / 2;
+      const sy = (video.videoHeight - size) / 2;
+      ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      setCapturedPhoto(dataUrl);
+    }
+  };
+
+  // Confirmar y guardar la foto tomada con la cámara
+  const confirmCapturedPhoto = () => {
+    if (capturedPhoto) {
+      setFormData(prev => ({ ...prev, fotoPerfil: capturedPhoto }));
+    }
+    stopCamera();
+  };
+
+  // Asegurar la limpieza de los recursos de cámara si se desmonta
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
 
   // Form State para Crear / Editar
   const [formData, setFormData] = useState({
@@ -842,6 +924,59 @@ export default function ChildProfileCRUD({
                   </li>
                 </ul>
               </div>
+
+              {/* HISTORIAL DE PAGOS REGISTRADOS DEL SOCIO */}
+              <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-neutral-800">
+                    <History className="w-4 h-4 text-corporate-700" />
+                    <span>Historial de Pagos de este Socio</span>
+                  </div>
+                  <span className="font-mono text-2xs font-bold bg-neutral-200 text-neutral-800 px-2 py-0.5 rounded">
+                    {Array.isArray(viewingMember.historialPagos) ? viewingMember.historialPagos.length : 0} cobros
+                  </span>
+                </div>
+
+                {Array.isArray(viewingMember.historialPagos) && viewingMember.historialPagos.length > 0 ? (
+                  <div className="space-y-2 pt-1 max-h-48 overflow-y-auto">
+                    {viewingMember.historialPagos.map((txn) => (
+                      <div
+                        key={txn.id || Math.random()}
+                        className="p-2.5 bg-white border border-neutral-200 rounded-xl flex items-center justify-between gap-2 text-2xs shadow-2xs"
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-neutral-900">{txn.fecha}</span>
+                            <span className="font-bold text-corporate-800 bg-corporate-50 px-1.5 py-0.2 rounded border border-corporate-200/50">
+                              {txn.metodoPago}
+                            </span>
+                          </div>
+                          <div className="text-neutral-500 font-mono text-[10px] mt-0.5">
+                            ID: {txn.id} {txn.referenciaPago ? `· Ref: ${txn.referenciaPago}` : ''}
+                          </div>
+                        </div>
+
+                        <div className="text-right flex items-center gap-2">
+                          <div>
+                            <div className="font-mono font-bold text-neutral-900">{formatUSD(txn.montoUSD)}</div>
+                            <div className="font-mono text-emerald-700 font-semibold">{txn.montoBs ? formatBs(txn.montoBs) : ''}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReceipt({ transaction: txn, member: viewingMember })}
+                            className="p-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg transition-colors cursor-pointer"
+                            title="Ver Comprobante de Pago"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-2xs text-neutral-400 italic">Sin historial de pagos registrado.</p>
+                )}
+              </div>
             </div>
 
             {/* Footer con Acciones CRUD directas y Botón de Imprimir Carnet */}
@@ -924,28 +1059,57 @@ export default function ChildProfileCRUD({
             {/* Formulario */}
             <form onSubmit={handleFormSubmit} className="p-6 overflow-y-auto space-y-4 text-xs">
               
-              {/* SELECTOR INTERACTIVO DE FOTO DE PERFIL DEL NIÑO */}
+              {/* CAPTURA O SUBIDA EXCLUSIVA DE FOTO DE PERFIL DEL NIÑO */}
               <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 space-y-3">
-                <label className="block font-bold text-neutral-800 uppercase tracking-wide text-2xs">
-                  Foto de Perfil del Niño (Para Ficha y Carnet) *
-                </label>
-                <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <label className="block font-bold text-neutral-800 uppercase tracking-wide text-2xs">
+                    Foto de Perfil del Niño (Para Ficha y Carnet) *
+                  </label>
+                  <span className="text-[10px] text-corporate-800 font-bold bg-corporate-50 border border-corporate-200/80 px-2.5 py-0.5 rounded-full">
+                    Exclusivo: Cámara en Vivo o Archivo Dispositivo
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-4 pt-1">
                   {/* Vista previa de la foto actual */}
                   <div className="relative shrink-0">
-                    <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-corporate-600 shadow-md bg-white">
-                      <img
-                        src={formData.fotoPerfil || PRESET_AVATARS[0].url}
-                        alt="Foto previa"
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="w-22 h-22 rounded-2xl overflow-hidden border-2 border-corporate-600 shadow-md bg-white flex items-center justify-center">
+                      {formData.fotoPerfil ? (
+                        <img
+                          src={formData.fotoPerfil}
+                          alt="Foto del niño"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-center p-2 text-neutral-400">
+                          <User className="w-8 h-8 mx-auto mb-1 text-neutral-300" />
+                          <span className="text-[9px] font-bold block">Sin foto</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex-1 space-y-2 text-center sm:text-left">
-                    <div>
-                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-neutral-300 hover:bg-neutral-100 rounded-lg text-xs font-bold text-neutral-800 transition-colors cursor-pointer shadow-2xs">
-                        <Camera className="w-3.5 h-3.5 text-corporate-700" />
-                        <span>Subir Foto del Niño</span>
+                  {/* Botones de Captura con Cámara y Subida desde Dispositivo */}
+                  <div className="flex-1 space-y-2.5 text-center sm:text-left w-full">
+                    <p className="text-xs text-neutral-600 font-medium leading-tight">
+                      Captura directamente con la cámara del equipo o selecciona una foto guardada desde tu dispositivo.
+                    </p>
+
+                    <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start pt-0.5">
+                      {/* Botón 1: Tomar Foto en Vivo con Cámara */}
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        className="px-3.5 py-2 bg-corporate-600 hover:bg-corporate-700 active:bg-corporate-800 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4 text-white" />
+                        <span>Tomar Foto con Cámara</span>
+                      </button>
+
+                      {/* Botón 2: Subir desde Archivos del Dispositivo */}
+                      <label className="px-3.5 py-2 bg-white border border-neutral-300 hover:bg-neutral-100 active:bg-neutral-200 text-neutral-800 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 shadow-2xs cursor-pointer">
+                        <Upload className="w-4 h-4 text-neutral-700" />
+                        <span>Subir desde Dispositivo</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -953,32 +1117,11 @@ export default function ChildProfileCRUD({
                           onChange={handleImageUpload}
                         />
                       </label>
-                      <span className="text-[11px] text-neutral-500 block sm:inline sm:ml-2">
-                        Galería o cámara del móvil
-                      </span>
                     </div>
 
-                    {/* Galería de avatares rápidos */}
-                    <div>
-                      <span className="text-2xs text-neutral-500 font-medium block mb-1">O elige una foto sugerida:</span>
-                      <div className="flex items-center gap-1.5 flex-wrap justify-center sm:justify-start">
-                        {PRESET_AVATARS.map((av) => (
-                          <button
-                            key={av.id}
-                            type="button"
-                            onClick={() => setFormData({ ...formData, fotoPerfil: av.url })}
-                            className={`w-8 h-8 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
-                              formData.fotoPerfil === av.url 
-                                ? 'border-corporate-600 ring-2 ring-corporate-400 scale-105' 
-                                : 'border-neutral-200 opacity-80 hover:opacity-100'
-                            }`}
-                            title={av.nombre}
-                          >
-                            <img src={av.url} alt={av.nombre} className="w-full h-full object-cover" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <span className="text-[10px] text-neutral-400 block font-normal">
+                      Soporta JPG, PNG, WEBP (Se recomienda foto clara y centrada del rostro del niño)
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1282,6 +1425,130 @@ export default function ChildProfileCRUD({
         <CarnetModal
           member={carnetMember}
           onClose={() => setCarnetMember(null)}
+        />
+      )}
+
+      {/* ========================================================
+          MODAL 5: CÁMARA EN VIVO / CAPTURA DIRECTA DE FOTO DE PERFIL
+          ======================================================== */}
+      {showCameraModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-neutral-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header del Modal de Cámara */}
+            <div className="px-5 py-4 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-corporate-100 text-corporate-700 flex items-center justify-center font-bold">
+                  <Camera className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-neutral-900">
+                    Capturar Foto de Perfil
+                  </h3>
+                  <p className="text-2xs text-neutral-500">
+                    Foto en vivo para la Ficha y Carnet del niño
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="w-8 h-8 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Contenido del Vídeo o Foto Capturada */}
+            <div className="p-5 flex flex-col items-center justify-center space-y-4">
+              {cameraError ? (
+                <div className="p-4 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl text-xs space-y-3 text-center w-full">
+                  <AlertTriangle className="w-7 h-7 text-rose-600 mx-auto" />
+                  <p className="font-semibold leading-relaxed">{cameraError}</p>
+                  <label className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs w-full">
+                    <Upload className="w-4 h-4" />
+                    <span>Seleccionar Foto desde Dispositivo</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        handleImageUpload(e);
+                        stopCamera();
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : capturedPhoto ? (
+                /* Previsualización de la foto capturada */
+                <div className="flex flex-col items-center space-y-3 w-full">
+                  <div className="w-64 h-64 rounded-2xl overflow-hidden border-4 border-corporate-600 shadow-xl bg-black">
+                    <img src={capturedPhoto} alt="Captura" className="w-full h-full object-cover" />
+                  </div>
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    ¡Foto capturada! Verifica la nitidez
+                  </span>
+                </div>
+              ) : (
+                /* Visor en vivo de la cámara */
+                <div className="relative w-64 h-64 rounded-2xl overflow-hidden border-4 border-neutral-300 bg-black shadow-inner flex items-center justify-center">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Guía visual de encuadre */}
+                  <div className="absolute inset-0 border-2 border-dashed border-white/70 rounded-full pointer-events-none m-4" />
+                </div>
+              )}
+
+              {/* Botones de Acción de la Cámara */}
+              {!cameraError && (
+                <div className="flex items-center gap-3 w-full justify-center pt-2">
+                  {capturedPhoto ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setCapturedPhoto(null)}
+                        className="px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                      >
+                        Repetir Foto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmCapturedPhoto}
+                        className="px-5 py-2.5 bg-corporate-600 hover:bg-corporate-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Usar esta Foto</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={takeSnapshot}
+                      className="px-6 py-2.5 bg-corporate-600 hover:bg-corporate-700 active:bg-corporate-800 text-white font-extrabold rounded-xl text-xs transition-all flex items-center gap-2 shadow-md cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" />
+                      <span>Capturar Foto</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL DE COMPROBANTE DE PAGO
+          ======================================================== */}
+      {selectedReceipt && (
+        <PaymentReceiptModal
+          transaction={selectedReceipt.transaction}
+          member={selectedReceipt.member}
+          onClose={() => setSelectedReceipt(null)}
         />
       )}
     </div>

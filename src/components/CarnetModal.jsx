@@ -20,19 +20,25 @@ import {
   Coffee, 
   Gamepad2, 
   Phone, 
-  QrCode, 
+  Tag,
+  Hash,
+  ShieldCheck,
   Info,
   Layers,
-  FileText
+  FileText,
+  Image as ImageIcon
 } from 'lucide-react';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { 
   calculateAge, 
   isBirthdayThisMonth, 
   checkIsActiveAndValid, 
   getKidAvatar 
 } from '../mockData.js';
+import { 
+  generateCarnetDataUrl, 
+  triggerBlobDownload 
+} from '../utils/carnetRenderer.js';
 
 export default function CarnetModal({ member, onClose }) {
   const [cardSize, setCardSize] = useState('cr80'); // 'cr80' (54x85.6mm) | 'gafete' (70x100mm)
@@ -41,6 +47,7 @@ export default function CarnetModal({ member, onClose }) {
   const [exportType, setExportType] = useState('card'); // 'card' (individual) | 'sheet' (hoja A4 con guías)
 
   const carnetRef = useRef(null);
+  const [exportError, setExportError] = useState('');
 
   if (!member) return null;
 
@@ -59,29 +66,22 @@ export default function CarnetModal({ member, onClose }) {
     : { widthMm: 70, heightMm: 100, label: 'Gafete XL (70 × 100 mm)', desc: 'Mayor tamaño y visibilidad. Ideal para lectura rápida de nombres por parte de los meseros.' };
 
   /**
-   * Exporta el Carnet Vertical a PDF
+   * Exporta el Carnet Vertical a PDF en alta definición (300 DPI)
    * @param {'card' | 'sheet'} mode - 'card' para tamaño real individual o 'sheet' para hoja A4 con marcas de corte
    */
   const handleExportPDF = async (mode = 'card') => {
-    if (!carnetRef.current) return;
     setIsExporting(true);
     setExportSuccess(false);
+    setExportError('');
 
     try {
-      // Captura el elemento a 3x escala para garantizar 300 DPI y máxima nitidez de impresión
-      const canvas = await html2canvas(carnetRef.current, {
-        scale: 3,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const filename = `Carnet_${member.codigo}_${member.nombreNino.replace(/\s+/g, '_')}.pdf`;
+      // Genera el carnet en resolución 300 DPI nativa sin depender de html2canvas ni DOM tainting
+      const imgData = await generateCarnetDataUrl(member, cardDimensions);
+      const safeName = (member.nombreNino || 'Socio').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, '_');
+      const filename = `Carnet_${member.codigo}_${safeName}.pdf`;
 
       if (mode === 'card') {
-        // PDF individual con las medidas exactas del carnet (54 x 85.6 mm)
+        // PDF individual con las medidas exactas del carnet (54 x 85.6 mm o 70 x 100 mm)
         const pdf = new jsPDF({
           orientation: 'portrait',
           unit: 'mm',
@@ -89,7 +89,8 @@ export default function CarnetModal({ member, onClose }) {
         });
 
         pdf.addImage(imgData, 'PNG', 0, 0, cardDimensions.widthMm, cardDimensions.heightMm, '', 'FAST');
-        pdf.save(filename);
+        const pdfBlob = pdf.output('blob');
+        triggerBlobDownload(pdfBlob, filename);
       } else {
         // PDF en Hoja A4 con el carnet centrado y guías de recorte punteadas
         const pdf = new jsPDF({
@@ -105,14 +106,14 @@ export default function CarnetModal({ member, onClose }) {
 
         // Título de la hoja
         pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(14);
+        pdf.setFontSize(13);
         pdf.setTextColor(30, 41, 59);
         pdf.text('CLUB INFANTIL · CREDENCIAL OFICIAL DE SOCIO', pageWidth / 2, 20, { align: 'center' });
 
         pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(9);
+        pdf.setFontSize(8.5);
         pdf.setTextColor(100, 116, 139);
-        pdf.text(`Formato ${cardDimensions.label} · Imprimir en escala 100% (sin ajustar) y recortar por las guías`, pageWidth / 2, 26, { align: 'center' });
+        pdf.text(`Formato ${cardDimensions.label} · Imprimir al 100% (sin escalar) y recortar por las guías punteadas`, pageWidth / 2, 26, { align: 'center' });
 
         // Guías de corte punteadas alrededor del carnet
         pdf.setDrawColor(180, 190, 205);
@@ -131,18 +132,48 @@ export default function CarnetModal({ member, onClose }) {
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(8);
         pdf.setTextColor(140, 150, 165);
-        pdf.text('1. Imprime esta hoja en cartulina blanca (180g - 250g) o papel fotográfico.', pageWidth / 2, y + cardDimensions.heightMm + 14, { align: 'center' });
-        pdf.text('2. Recorta por el borde punteado y coloca en una funda transparente para carnet con clip o cinta de cuello.', pageWidth / 2, y + cardDimensions.heightMm + 19, { align: 'center' });
+        pdf.text('1. Imprime esta hoja en cartulina blanca (180g - 250g) o papel fotográfico brillante.', pageWidth / 2, y + cardDimensions.heightMm + 14, { align: 'center' });
+        pdf.text('2. Recorta por el borde punteado y coloca en una funda transparente para carnet con clip o cordón.', pageWidth / 2, y + cardDimensions.heightMm + 19, { align: 'center' });
         pdf.text(`Código: ${member.codigo} · Titular: ${member.nombreNino} · Vigencia: ${member.fechaVencimiento || 'N/D'}`, pageWidth / 2, y + cardDimensions.heightMm + 25, { align: 'center' });
 
-        pdf.save(`Hoja_Impresion_${filename}`);
+        const pdfBlob = pdf.output('blob');
+        triggerBlobDownload(pdfBlob, `Hoja_Impresion_${filename}`);
       }
 
       setExportSuccess(true);
-      setTimeout(() => setExportSuccess(false), 4000);
+      setTimeout(() => setExportSuccess(false), 4500);
     } catch (error) {
       console.error('Error al generar PDF del carnet:', error);
-      alert('Hubo un inconveniente al generar el PDF. Por favor intenta de nuevo.');
+      setExportError(`Hubo un inconveniente al generar el PDF: ${error.message || 'Error inesperado'}.`);
+      setTimeout(() => setExportError(''), 6000);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  /**
+   * Exporta la imagen PNG en alta definición (300 DPI) para guardar en galería o enviar por chat
+   */
+  const handleExportPNG = async () => {
+    setIsExporting(true);
+    setExportSuccess(false);
+    setExportError('');
+
+    try {
+      const imgData = await generateCarnetDataUrl(member, cardDimensions);
+      const safeName = (member.nombreNino || 'Socio').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, '_');
+      const filename = `Carnet_${member.codigo}_${safeName}.png`;
+
+      const res = await fetch(imgData);
+      const blob = await res.blob();
+      triggerBlobDownload(blob, filename);
+
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 4500);
+    } catch (error) {
+      console.error('Error al exportar PNG:', error);
+      setExportError('Error al exportar imagen PNG. Por favor intenta de nuevo.');
+      setTimeout(() => setExportError(''), 5000);
     } finally {
       setIsExporting(false);
     }
@@ -189,10 +220,10 @@ export default function CarnetModal({ member, onClose }) {
               COLUMNA IZQUIERDA: VISTA PREVIA DEL CARNET VERTICAL
               ======================================================== */}
           <div className="lg:col-span-6 flex flex-col items-center">
-            <div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2 flex items-center gap-1.5">
+            <div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2 flex items-center gap-1.5 flex-wrap justify-center">
               <span>Vista Previa del Carnet Vertical</span>
               <span className="font-mono text-corporate-700 bg-corporate-50 px-2 py-0.5 rounded text-2xs">
-                {cardSize === 'cr80' ? '54 × 85.6 mm (CR80)' : '70 × 100 mm (Gafete)'}
+                54 × 85.6 mm (8.56 × 5.4 cm / 3.37 × 2.125″)
               </span>
             </div>
 
@@ -343,17 +374,23 @@ export default function CarnetModal({ member, onClose }) {
                   </div>
                 </div>
 
-                {/* Pie del Carnet con Código de Barras / QR y Validador */}
-                <div className="bg-neutral-50 border-t border-neutral-200 px-3 py-1.5 flex items-center justify-between text-[8px] text-neutral-500">
-                  <div className="flex items-center gap-1.5">
-                    <QrCode className="w-5 h-5 text-neutral-800 shrink-0" />
-                    <div className="text-left leading-tight">
-                      <span className="font-mono font-bold text-neutral-900 block">{member.codigo}</span>
-                      <span className="text-neutral-400">Validador Oficial</span>
-                    </div>
+                {/* Pie del Carnet: Validación exclusiva con código de socio (sin QR) */}
+                <div className="bg-neutral-50 border-t border-neutral-200 px-3.5 py-2 flex items-center justify-between">
+                  <div className="text-left">
+                    <span className="text-[7.5px] uppercase font-bold tracking-wider text-neutral-400 block">
+                      Código para Validar en Mesa
+                    </span>
+                    <span className="font-mono font-black text-sm tracking-widest text-corporate-900 block">
+                      {member.codigo}
+                    </span>
                   </div>
-                  <div className="text-right font-medium text-neutral-400">
-                    Restaurante & Club Infantil
+                  <div className="text-right flex flex-col items-end">
+                    <span className="inline-flex items-center gap-1 text-[7.5px] font-bold text-corporate-800 bg-corporate-100/80 px-2 py-0.5 rounded border border-corporate-200/60 uppercase tracking-wide">
+                      Club Infantil
+                    </span>
+                    <span className="text-[7.5px] text-neutral-400 font-medium mt-0.5">
+                      Restaurante Oficial
+                    </span>
                   </div>
                 </div>
               </div>
@@ -366,59 +403,9 @@ export default function CarnetModal({ member, onClose }) {
           </div>
 
           {/* ========================================================
-              COLUMNA DERECHA: MEDIDAS ESTÁNDARES Y OPCIONES DE PDF
+              COLUMNA DERECHA: OPCIONES DE EXPORTACIÓN Y DESCARGA
               ======================================================== */}
           <div className="lg:col-span-6 space-y-5">
-            {/* Explicación de Medidas Estándares Sugeridas (Requerimiento explícito) */}
-            <div className="bg-corporate-50 border border-corporate-200 rounded-2xl p-4 text-xs space-y-2">
-              <div className="flex items-center gap-2 font-extrabold text-corporate-900 text-sm">
-                <Info className="w-4 h-4 text-corporate-700 shrink-0" />
-                <span>Medidas Estándares Recomendadas para el Carnet</span>
-              </div>
-              <p className="text-corporate-950 leading-relaxed">
-                Para carnets infantiles en restaurantes y clubes, existen dos formatos físicos estándar universales:
-              </p>
-              
-              <div className="space-y-2 pt-1">
-                <div 
-                  onClick={() => setCardSize('cr80')}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer ${
-                    cardSize === 'cr80' 
-                      ? 'bg-white border-corporate-600 shadow-xs ring-2 ring-corporate-400' 
-                      : 'bg-white/70 border-corporate-200 hover:bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-bold text-neutral-900">
-                    <span>1. Estándar CR80 (54 mm × 85.6 mm) — Recomendado</span>
-                    <span className="text-2xs bg-corporate-100 text-corporate-800 px-2 py-0.5 rounded font-mono font-bold">
-                      2.13″ × 3.38″
-                    </span>
-                  </div>
-                  <p className="text-2xs text-neutral-600 mt-1">
-                    <strong>Medida oficial internacional (ISO/IEC 7810 ID-1)</strong>. Es exactamente el tamaño de una tarjeta de crédito o credencial escolar. Compatible con todas las fundas plásticas para gafete y cintas de cuello (lanyards) del mercado.
-                  </p>
-                </div>
-
-                <div 
-                  onClick={() => setCardSize('gafete')}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer ${
-                    cardSize === 'gafete' 
-                      ? 'bg-white border-corporate-600 shadow-xs ring-2 ring-corporate-400' 
-                      : 'bg-white/70 border-corporate-200 hover:bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-bold text-neutral-900">
-                    <span>2. Gafete XL para Eventos (70 mm × 100 mm)</span>
-                    <span className="text-2xs bg-neutral-100 text-neutral-700 px-2 py-0.5 rounded font-mono font-bold">
-                      2.75″ × 3.94″
-                    </span>
-                  </div>
-                  <p className="text-2xs text-neutral-600 mt-1">
-                    Formato ampliado ideal para eventos especiales en restaurantes donde se requiere que el nombre y las alergias del niño sean legibles a distancia por los meseros.
-                  </p>
-                </div>
-              </div>
-            </div>
 
             {/* Opciones de Descarga y Exportación a PDF */}
             <div className="space-y-3">
@@ -437,14 +424,14 @@ export default function CarnetModal({ member, onClose }) {
                   <Download className="w-5 h-5" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-extrabold flex items-center justify-between">
+                  <div className="text-sm font-extrabold flex items-center justify-between flex-wrap gap-1">
                     <span>Descargar PDF Carnet Individual (Tamaño Real)</span>
-                    <span className="text-2xs font-mono bg-white/20 px-2 py-0.5 rounded text-white">
-                      {cardDimensions.widthMm} × {cardDimensions.heightMm} mm
+                    <span className="text-2xs font-mono bg-white/20 px-2 py-0.5 rounded text-white font-bold">
+                      54 × 85.6 mm (8.56 × 5.4 cm)
                     </span>
                   </div>
                   <p className="text-xs text-neutral-300 mt-0.5 font-normal leading-snug">
-                    Genera un documento PDF con las medidas físicas exactas para imprimir directamente en impresoras de tarjetas de PVC o papel fotográfico.
+                    PDF en tamaño oficial de tarjeta (85.6 × 54 mm / 3.37 × 2.125 pulgadas) listo para impresión en PVC o papel fotográfico.
                   </p>
                 </div>
               </button>
@@ -472,7 +459,30 @@ export default function CarnetModal({ member, onClose }) {
                 </div>
               </button>
 
-              {/* Opción 3: Diálogo de Impresión Directa */}
+              {/* Opción 3: Descargar Imagen PNG Alta Resolución */}
+              <button
+                type="button"
+                onClick={handleExportPNG}
+                disabled={isExporting}
+                className="w-full p-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold text-left flex items-center gap-3 transition-all cursor-pointer disabled:opacity-50 border border-slate-300"
+              >
+                <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center shrink-0 text-slate-700">
+                  <ImageIcon className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-extrabold flex items-center justify-between">
+                    <span>Descargar Imagen PNG (300 DPI)</span>
+                    <span className="text-2xs font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-700">
+                      Alta Resolución
+                    </span>
+                  </div>
+                  <p className="text-2xs text-slate-500 mt-0.5 leading-snug">
+                    Guarda la credencial en formato de imagen PNG para enviar por WhatsApp o guardar en galería.
+                  </p>
+                </div>
+              </button>
+
+              {/* Opción 4: Diálogo de Impresión Directa */}
               <button
                 type="button"
                 onClick={handlePrint}
@@ -495,6 +505,13 @@ export default function CarnetModal({ member, onClose }) {
               <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl text-xs flex items-center gap-2 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                 <span>¡PDF descargado con éxito! Revisa tu carpeta de descargas.</span>
+              </div>
+            )}
+
+            {exportError && (
+              <div className="p-3 bg-rose-50 border border-rose-300 text-rose-900 rounded-xl text-xs flex items-center gap-2 animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 text-rose-600" />
+                <span>{exportError}</span>
               </div>
             )}
           </div>

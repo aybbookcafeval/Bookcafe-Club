@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { 
   Search, 
-  QrCode, 
+  ShieldCheck, 
   Cake, 
   Gift, 
   CheckCircle2, 
@@ -78,14 +78,14 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
       {/* Encabezado contextual para Meseros */}
       <div className="text-center md:text-left">
         <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-corporate-800 bg-corporate-100/80 px-3 py-1 rounded-full mb-2">
-          <QrCode className="w-3.5 h-3.5" />
+          <ShieldCheck className="w-3.5 h-3.5 text-corporate-700" />
           Terminal de Servicio para Meseros
         </div>
         <h1 className="text-2xl md:text-3xl font-extrabold text-neutral-900 tracking-tight">
-          Validador de Beneficios Club Infantil
+          Validación con Código de Socio
         </h1>
         <p className="text-sm text-neutral-600 mt-1">
-          Escanea o ingresa el código del carnet o el teléfono del tutor para aplicar beneficios en comanda.
+          Ingresa el código del carnet del niño (ej: KID-101), teléfono o cédula del tutor para validar beneficios en mesa.
         </p>
       </div>
 
@@ -471,12 +471,12 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
            ESTADO INICIAL / EN ESPERA DE ESCANEO
            ======================================================== */
         <div className="bg-white rounded-2xl border border-neutral-200 p-8 md:p-12 text-center shadow-xs">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
-            <QrCode className="w-8 h-8" />
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-corporate-50 text-corporate-700 flex items-center justify-center mb-4">
+            <ShieldCheck className="w-8 h-8" />
           </div>
-          <h3 className="text-lg font-bold text-neutral-900">Listo para validar afiliados</h3>
+          <h3 className="text-lg font-bold text-neutral-900">Listo para validar con código de socio</h3>
           <p className="text-sm text-neutral-500 max-w-md mx-auto mt-1 mb-6">
-            Escribe el código que aparece en el carnet físico/digital del niño o solicita el número telefónico del tutor.
+            Escribe el código que aparece en el carnet del niño (ej: KID-101), o el teléfono / cédula del tutor.
           </p>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl mx-auto text-left text-xs text-neutral-600">

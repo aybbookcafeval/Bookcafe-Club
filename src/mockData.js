@@ -231,7 +231,7 @@ export const getAfiliadosFromStorage = () => {
       return INITIAL_AFILIADOS;
     }
 
-    // Auto-migración suave si los datos previos no tenían fotos de perfil
+    // Auto-migración suave si los datos previos no tenían fotos de perfil o historial de pagos
     let needsResave = false;
     const normalized = parsed.map((item, idx) => {
       let changed = false;
@@ -240,9 +240,33 @@ export const getAfiliadosFromStorage = () => {
         foto = PRESET_AVATARS[idx % PRESET_AVATARS.length].url;
         changed = true;
       }
+
+      let history = Array.isArray(item.historialPagos) ? item.historialPagos : [];
+      if (history.length === 0 && (item.montoPagado > 0 || item.metodoPago)) {
+        const montoUSD = Number(item.montoPagado) > 500 ? 25.0 : Number(item.montoPagado) || 25.0;
+        const tasa = item.tasaCambio || DEFAULT_TASA_DOLAR;
+        const montoBs = item.montoBs || (montoUSD * tasa);
+        history = [
+          {
+            id: `TXN-${item.codigo || 'KID'}-01`,
+            fecha: item.fechaInicio || new Date().toISOString().split('T')[0],
+            hora: '14:30',
+            montoUSD,
+            metodoPago: item.metodoPago || 'Pago Móvil',
+            referenciaPago: item.referenciaPago || 'PM-894120',
+            tasaCambio: tasa,
+            montoBs,
+            concepto: 'Membresía Oficial Club Infantil (30 Días)',
+            cajero: 'Caja Restaurante Principal'
+          }
+        ];
+        changed = true;
+      }
+
       if (item.montoPagado && Number(item.montoPagado) > 500) {
         changed = true;
       }
+
       if (changed) {
         needsResave = true;
         return {
@@ -250,10 +274,14 @@ export const getAfiliadosFromStorage = () => {
           fotoPerfil: foto,
           montoPagado: Number(item.montoPagado) > 500 ? 25.0 : Number(item.montoPagado) || 0,
           tasaCambio: item.tasaCambio || DEFAULT_TASA_DOLAR,
-          montoBs: Number(item.montoPagado) > 500 ? Number(item.montoPagado) : item.montoBs || 0
+          montoBs: Number(item.montoPagado) > 500 ? Number(item.montoPagado) : item.montoBs || 0,
+          historialPagos: history
         };
       }
-      return item;
+      return {
+        ...item,
+        historialPagos: history
+      };
     });
 
     if (needsResave) {

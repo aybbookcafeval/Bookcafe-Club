@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   CreditCard, 
   Search, 
@@ -23,7 +23,13 @@ import {
   Filter,
   Calculator,
   RefreshCw,
-  Coins
+  Coins,
+  History,
+  Receipt,
+  FileText,
+  Eye,
+  Clock,
+  Building2
 } from 'lucide-react';
 import { 
   calculateAge, 
@@ -35,6 +41,7 @@ import {
   formatBs,
   getKidAvatar
 } from '../mockData.js';
+import PaymentReceiptModal from './PaymentReceiptModal.jsx';
 
 export default function AdminPanel({
   afiliados,
@@ -95,6 +102,62 @@ export default function AdminPanel({
   const [metodoPago, setMetodoPago] = useState('Pago Móvil');
   const [referenciaPago, setReferenciaPago] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modo de pestaña en el módulo de pagos: 'cobros' | 'historial_general'
+  const [activeTab, setActiveTab] = useState('cobros');
+
+  // Filtro para el Historial General
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
+  const [historyMethodFilter, setHistoryMethodFilter] = useState('todos');
+
+  // Modal para ver Comprobante Auditado de un Pago
+  const [selectedReceipt, setSelectedReceipt] = useState(null); // { transaction, member }
+
+  // Modal para ver Historial de Pagos de un Socio Individual
+  const [memberHistoryModal, setMemberHistoryModal] = useState(null); // member object
+
+  // Lista aplanada de todas las transacciones financieras del sistema
+  const allTransactions = useMemo(() => {
+    const list = [];
+    afiliados.forEach((member) => {
+      const history = Array.isArray(member.historialPagos) ? member.historialPagos : [];
+      history.forEach((txn) => {
+        list.push({
+          transaction: txn,
+          member
+        });
+      });
+    });
+
+    // Ordenar descendente por fecha/hora
+    return list.sort((a, b) => {
+      const dateA = a.transaction.fecha || '';
+      const dateB = b.transaction.fecha || '';
+      return dateB.localeCompare(dateA);
+    });
+  }, [afiliados]);
+
+  // Transacciones filtradas para el Historial General
+  const filteredTransactions = useMemo(() => {
+    return allTransactions.filter(({ transaction, member }) => {
+      if (historyMethodFilter !== 'todos' && transaction.metodoPago !== historyMethodFilter) {
+        return false;
+      }
+
+      if (!historySearchTerm.trim()) return true;
+      const term = historySearchTerm.toLowerCase();
+
+      return (
+        (transaction.id || '').toLowerCase().includes(term) ||
+        (member.codigo || '').toLowerCase().includes(term) ||
+        (member.nombreNino || '').toLowerCase().includes(term) ||
+        (member.tutorNombre || '').toLowerCase().includes(term) ||
+        (member.tutorCedula || '').toLowerCase().includes(term) ||
+        (transaction.referenciaPago || '').toLowerCase().includes(term) ||
+        (transaction.concepto || '').toLowerCase().includes(term)
+      );
+    });
+  }, [allTransactions, historySearchTerm, historyMethodFilter]);
 
   // Filtro de lista
   const filteredAfiliados = afiliados.filter((af) => {
@@ -274,7 +337,42 @@ export default function AdminPanel({
         </div>
       </div>
 
-      {/* Barra de Filtros y Búsqueda */}
+      {/* Pestañas de Sub-Navegación: Registrar Cobros en Caja vs Vista General de Historial */}
+      <div className="flex items-center border-b border-neutral-200 gap-4 pt-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab('cobros')}
+          className={`pb-3 px-2 text-sm font-extrabold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+            activeTab === 'cobros'
+              ? 'border-corporate-600 text-corporate-900'
+              : 'border-transparent text-neutral-500 hover:text-neutral-800'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Registrar Cobro en Caja</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('historial_general')}
+          className={`pb-3 px-2 text-sm font-extrabold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+            activeTab === 'historial_general'
+              ? 'border-corporate-600 text-corporate-900'
+              : 'border-transparent text-neutral-500 hover:text-neutral-800'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Vista General - Historial de Pagos</span>
+          <span className="font-mono text-2xs font-bold bg-neutral-200 text-neutral-800 px-2 py-0.5 rounded-full">
+            {allTransactions.length}
+          </span>
+        </button>
+      </div>
+
+      {/* PESTAÑA 1: REGISTRAR COBROS EN CAJA Y LISTA DE MIEMBROS */}
+      {activeTab === 'cobros' && (
+        <div className="space-y-4">
+          {/* Barra de Filtros y Búsqueda */}
       <div className="bg-white p-3 md:p-4 rounded-xl border border-neutral-200 shadow-2xs space-y-3">
         <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           {/* Input de búsqueda */}
@@ -477,9 +575,9 @@ export default function AdminPanel({
                         )}
                       </td>
 
-                      {/* Acción de Caja: Registrar Pago y Ver Ficha */}
+                      {/* Acción de Caja: Registrar Pago, Ficha e Historial */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => onViewChildProfile && onViewChildProfile(af.id)}
@@ -487,6 +585,16 @@ export default function AdminPanel({
                             title="Ver Ficha Completa del Niño"
                           >
                             <span>Ficha</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setMemberHistoryModal(af)}
+                            className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-corporate-800 bg-corporate-50 hover:bg-corporate-100 border border-corporate-200/80 rounded-lg transition-colors cursor-pointer"
+                            title="Ver Historial de Pagos de este Socio"
+                          >
+                            <History className="w-3.5 h-3.5 text-corporate-700" />
+                            <span>Historial</span>
                           </button>
 
                           {isPending || isExpired ? (
@@ -502,7 +610,7 @@ export default function AdminPanel({
                             <button
                               type="button"
                               onClick={() => openPaymentModal(af)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-md transition-colors"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors cursor-pointer"
                               title="Renovar anticipadamente"
                             >
                               <span>Renovar</span>
@@ -524,6 +632,180 @@ export default function AdminPanel({
           </table>
         </div>
       </div>
+    </div>
+  )}
+
+      {/* ========================================================
+          PESTAÑA 2: VISTA GENERAL DEL HISTORIAL DE PAGOS (TODAS LAS TRANSACCIONES)
+          ======================================================== */}
+      {activeTab === 'historial_general' && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Barra de Filtros para el Historial General */}
+          <div className="bg-white p-3 md:p-4 rounded-xl border border-neutral-200 shadow-2xs space-y-3">
+            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+              {/* Input de búsqueda en historial */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <input
+                  type="text"
+                  value={historySearchTerm}
+                  onChange={(e) => setHistorySearchTerm(e.target.value)}
+                  placeholder="Buscar en historial por Nro. Transacción, Código, Niño, Tutor o Referencia..."
+                  className="w-full pl-9 pr-4 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-corporate-500 focus:bg-white transition-all"
+                />
+                {historySearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setHistorySearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400 hover:text-neutral-700"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro por Forma de Pago */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-2xs font-bold uppercase tracking-wider text-neutral-400">Forma de Pago:</span>
+                <select
+                  value={historyMethodFilter}
+                  onChange={(e) => setHistoryMethodFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-800 focus:outline-none focus:ring-2 focus:ring-corporate-500 cursor-pointer"
+                >
+                  <option value="todos">Todos los métodos</option>
+                  <option value="Pago Móvil">Pago Móvil</option>
+                  <option value="Tarjeta">Tarjeta / Punto</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Sended">Sended</option>
+                  <option value="Efectivo $">Efectivo ($ USD)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabla General de Transacciones Financieras */}
+          <div className="bg-white rounded-xl border border-neutral-200 shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-neutral-50 text-neutral-500 font-bold uppercase tracking-wider border-b border-neutral-200">
+                  <tr>
+                    <th className="py-3 px-4">Fecha / Hora</th>
+                    <th className="py-3 px-4">Nro. Transacción</th>
+                    <th className="py-3 px-4">Socio Niño</th>
+                    <th className="py-3 px-4">Representante</th>
+                    <th className="py-3 px-4">Método & Referencia</th>
+                    <th className="py-3 px-4 text-right">Monto ($ USD)</th>
+                    <th className="py-3 px-4 text-right">Equivalencia (Bs.)</th>
+                    <th className="py-3 px-4 text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200">
+                  {filteredTransactions.length > 0 ? (
+                    filteredTransactions.map(({ transaction, member }) => {
+                      return (
+                        <tr key={transaction.id || Math.random()} className="hover:bg-neutral-50/80 transition-colors">
+                          {/* Fecha */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="font-mono font-bold text-neutral-900">
+                              {transaction.fecha}
+                            </div>
+                            {transaction.hora && (
+                              <div className="text-2xs text-neutral-400 font-mono">
+                                {transaction.hora}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* ID Transacción */}
+                          <td className="py-3 px-4 font-mono font-bold text-neutral-700 whitespace-nowrap">
+                            <span className="bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded text-2xs">
+                              {transaction.id}
+                            </span>
+                          </td>
+
+                          {/* Socio Niño */}
+                          <td className="py-3 px-4 font-medium text-neutral-900">
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={getKidAvatar(member)}
+                                alt={member.nombreNino}
+                                className="w-8 h-8 rounded-lg object-cover border border-neutral-200 shrink-0"
+                              />
+                              <div>
+                                <div className="font-bold text-neutral-900 leading-tight">
+                                  {member.nombreNino}
+                                </div>
+                                <span className="font-mono text-2xs text-corporate-700">
+                                  {member.codigo}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Representante */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="font-medium text-neutral-800">{member.tutorNombre}</div>
+                            {member.tutorCedula && (
+                              <div className="text-2xs text-neutral-500 font-mono">
+                                C.I. {member.tutorCedula}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Método & Referencia */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-bold text-corporate-900 bg-corporate-50 border border-corporate-200/80 px-2 py-0.5 rounded text-2xs">
+                              {transaction.metodoPago}
+                            </span>
+                            <div className="font-mono text-2xs text-neutral-600 mt-0.5">
+                              Ref: {transaction.referenciaPago || 'N/A'}
+                            </div>
+                          </td>
+
+                          {/* Monto USD */}
+                          <td className="py-3 px-4 text-right font-mono font-bold text-neutral-900 whitespace-nowrap">
+                            {formatUSD(transaction.montoUSD)}
+                          </td>
+
+                          {/* Monto Bs. */}
+                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-800 whitespace-nowrap">
+                            {transaction.montoBs 
+                              ? formatBs(transaction.montoBs) 
+                              : formatBs((transaction.montoUSD || 0) * (transaction.tasaCambio || DEFAULT_TASA_DOLAR))}
+                            {transaction.tasaCambio && (
+                              <div className="text-[10px] text-neutral-400 font-normal">
+                                @ {transaction.tasaCambio.toFixed(2)} Bs/$
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Ver Comprobante */}
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedReceipt({ transaction, member })}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-2xs rounded-lg transition-colors shadow-2xs cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Ver Comprobante</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-sm text-neutral-500">
+                        No hay registros de pagos que coincidan con la búsqueda.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================
           MODAL PARA REGISTRAR PAGO EN CAJA ($ USD + CONVERSIÓN BS)
@@ -774,6 +1056,141 @@ export default function AdminPanel({
             </form>
           </div>
         </div>
+      )}
+
+      {/* ========================================================
+          MODAL: HISTORIAL INDIVIDUAL DE PAGOS DE UN SOCIO
+          ======================================================== */}
+      {memberHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-neutral-200 overflow-hidden animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <img
+                  src={getKidAvatar(memberHistoryModal)}
+                  alt={memberHistoryModal.nombreNino}
+                  className="w-10 h-10 rounded-xl object-cover border border-neutral-200 shadow-2xs"
+                />
+                <div>
+                  <h3 className="text-base font-extrabold text-neutral-900 leading-tight">
+                    Historial de Pagos: {memberHistoryModal.nombreNino}
+                  </h3>
+                  <p className="text-2xs text-neutral-500 font-mono">
+                    Código: {memberHistoryModal.codigo} · Representante: {memberHistoryModal.tutorNombre}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMemberHistoryModal(null)}
+                className="w-8 h-8 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenido con lista de pagos del socio */}
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="flex items-center justify-between text-xs bg-neutral-50 p-3 rounded-2xl border border-neutral-200">
+                <div>
+                  <span className="text-neutral-500 block text-2xs">Total Historico Abonado:</span>
+                  <span className="font-mono font-black text-neutral-900 text-sm">
+                    {formatUSD(memberHistoryModal.montoPagado || 0)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-neutral-500 block text-2xs">Estado Actual:</span>
+                  <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-2xs uppercase">
+                    {memberHistoryModal.estado}
+                  </span>
+                </div>
+              </div>
+
+              {/* Lista de transacciones del socio */}
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                  Registros de Pago del Socio:
+                </div>
+
+                {Array.isArray(memberHistoryModal.historialPagos) && memberHistoryModal.historialPagos.length > 0 ? (
+                  memberHistoryModal.historialPagos.map((txn) => (
+                    <div
+                      key={txn.id || Math.random()}
+                      className="p-3.5 bg-white border border-neutral-200 hover:border-corporate-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors shadow-2xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-2xs font-bold text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200">
+                            {txn.id}
+                          </span>
+                          <span className="text-2xs text-neutral-400 font-mono">
+                            {txn.fecha} {txn.hora ? `· ${txn.hora}` : ''}
+                          </span>
+                        </div>
+                        <div className="text-xs font-extrabold text-neutral-900">
+                          {txn.concepto || 'Cobro de Membresía VIP'}
+                        </div>
+                        <div className="text-2xs text-neutral-500 flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-corporate-800 bg-corporate-50 px-1.5 py-0.2 rounded border border-corporate-200/60">
+                            {txn.metodoPago}
+                          </span>
+                          <span>· Ref: <strong className="font-mono">{txn.referenciaPago || 'N/A'}</strong></span>
+                        </div>
+                      </div>
+
+                      <div className="flex sm:flex-col items-baseline sm:items-end justify-between w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-neutral-100">
+                        <div className="font-mono font-black text-sm text-neutral-900">
+                          {formatUSD(txn.montoUSD)}
+                        </div>
+                        <div className="text-2xs text-emerald-800 font-mono font-bold">
+                          {txn.montoBs ? formatBs(txn.montoBs) : ''}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedReceipt({ transaction: txn, member: memberHistoryModal });
+                          }}
+                          className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-lg text-2xs transition-colors cursor-pointer"
+                        >
+                          <FileText className="w-3 h-3" />
+                          <span>Ver Comprobante</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 bg-neutral-50 rounded-2xl text-center text-neutral-500 text-xs">
+                    Sin historial de pagos anteriores registrado.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 bg-neutral-50 border-t border-neutral-200 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setMemberHistoryModal(null)}
+                className="px-4 py-2 bg-neutral-900 text-white font-bold text-xs rounded-xl hover:bg-neutral-800 transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL: COMPROBANTE AUDITADO DE PAGO (RECIBO OFICIAL)
+          ======================================================== */}
+      {selectedReceipt && (
+        <PaymentReceiptModal
+          transaction={selectedReceipt.transaction}
+          member={selectedReceipt.member}
+          onClose={() => setSelectedReceipt(null)}
+        />
       )}
     </div>
   );
