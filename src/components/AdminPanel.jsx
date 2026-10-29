@@ -237,6 +237,16 @@ export default function AdminPanel({
       return;
     }
 
+    if (currentMetodo?.requiresRef && referenciaPago.trim()) {
+      const refDuplicada = allTransactions.some(
+        t => t.transaction.referenciaPago?.trim().toLowerCase() === referenciaPago.trim().toLowerCase()
+      );
+      if (refDuplicada) {
+        alert(`¡Atención! La referencia de pago "${referenciaPago.trim()}" ya fue registrada previamente en otra transacción del sistema.`);
+        return;
+      }
+    }
+
     if (!numeroFactura.trim()) {
       alert('Por favor ingresa el número de factura.');
       return;
