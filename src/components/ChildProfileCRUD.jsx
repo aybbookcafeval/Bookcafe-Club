@@ -47,7 +47,7 @@ import {
   PRESET_AVATARS,
   formatUSD,
   formatBs
-} from '../mockData.js';
+} from '../utils/memberHelpers.js';
 import CarnetModal from './CarnetModal.jsx';
 import PaymentReceiptModal from './PaymentReceiptModal.jsx';
 

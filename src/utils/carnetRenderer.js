@@ -8,7 +8,7 @@ import {
   isBirthdayThisMonth, 
   checkIsActiveAndValid, 
   getKidAvatar 
-} from '../mockData.js';
+} from './memberHelpers.js';
 
 /**
  * Pre-carga una imagen de forma asíncrona garantizando crossOrigin="anonymous".

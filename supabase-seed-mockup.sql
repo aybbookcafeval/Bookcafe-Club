@@ -57,14 +57,51 @@ CREATE TABLE IF NOT EXISTS public.socios (
 -- Si la columna historial_pagos no existe en socios, agregarla
 ALTER TABLE public.socios ADD COLUMN IF NOT EXISTS historial_pagos JSONB DEFAULT '[]'::jsonb;
 
+-- Tabla de pagos (relacionada con socios mediante socio_id)
+CREATE TABLE IF NOT EXISTS public.pagos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    transaccion_id TEXT NOT NULL UNIQUE,
+    socio_id UUID REFERENCES public.socios(id) ON DELETE CASCADE,
+    codigo_socio TEXT NOT NULL,
+    monto_usd NUMERIC NOT NULL,
+    metodo_pago TEXT NOT NULL,
+    referencia_pago TEXT,
+    numero_factura TEXT NOT NULL,
+    tasa_cambio NUMERIC,
+    monto_bs NUMERIC,
+    concepto TEXT DEFAULT 'Cobro de Membresía VIP (30 Días)',
+    cajero TEXT DEFAULT 'Caja Restaurante Principal',
+    fecha_pago DATE NOT NULL DEFAULT CURRENT_DATE,
+    hora_pago TIME WITHOUT TIME ZONE DEFAULT CURRENT_TIME,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
+);
+
+-- Tabla de configuración general (tasa de cambio en Bs., etc.)
+CREATE TABLE IF NOT EXISTS public.configuracion (
+    clave VARCHAR(50) PRIMARY KEY,
+    valor TEXT NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 2. HABILITAR POLÍTICAS DE ACCESO TOTAL (RLS) PARA LA APP
 ALTER TABLE public.socios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.membresias ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pagos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.configuracion ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para socios (Lectura, Inserción, Actualización y Eliminación pública/anónima)
 DROP POLICY IF EXISTS "Allow public full access socios" ON public.socios;
 CREATE POLICY "Allow public full access socios" 
 ON public.socios 
+FOR ALL 
+TO anon, authenticated 
+USING (true) 
+WITH CHECK (true);
+
+-- Políticas para pagos
+DROP POLICY IF EXISTS "Allow public full access pagos" ON public.pagos;
+CREATE POLICY "Allow public full access pagos" 
+ON public.pagos 
 FOR ALL 
 TO anon, authenticated 
 USING (true) 
@@ -78,6 +115,20 @@ FOR ALL
 TO anon, authenticated 
 USING (true) 
 WITH CHECK (true);
+
+-- Políticas para configuracion
+DROP POLICY IF EXISTS "Allow public full access configuracion" ON public.configuracion;
+CREATE POLICY "Allow public full access configuracion" 
+ON public.configuracion 
+FOR ALL 
+TO anon, authenticated 
+USING (true) 
+WITH CHECK (true);
+
+-- Tasa referencial por defecto
+INSERT INTO public.configuracion (clave, valor)
+VALUES ('tasa_dolar', '65.00')
+ON CONFLICT (clave) DO NOTHING;
 
 -- 3. PLAN DE MEMBRESÍA BASE
 INSERT INTO public.membresias (
@@ -368,3 +419,85 @@ ON CONFLICT (id) DO UPDATE SET
     alergias = EXCLUDED.alergias,
     notas = EXCLUDED.notas,
     historial_pagos = EXCLUDED.historial_pagos;
+
+-- ==============================================================================
+-- 6. REGISTROS DE PAGO EN TABLA RELACIONAL public.pagos (vinculados por socio_id)
+-- ==============================================================================
+INSERT INTO public.pagos (
+    transaccion_id,
+    socio_id,
+    codigo_socio,
+    monto_usd,
+    metodo_pago,
+    referencia_pago,
+    numero_factura,
+    tasa_cambio,
+    monto_bs,
+    concepto,
+    cajero,
+    fecha_pago
+) VALUES
+(
+    'TXN-BK-00001-01',
+    'a0000001-0000-0000-0000-000000000001',
+    'BK-00001',
+    25.00,
+    'Pago Móvil',
+    'PM-894120',
+    'FAC-2026-102',
+    52.50,
+    1312.50,
+    'Inscripción + Carnet VIP',
+    'Caja Restaurante Principal',
+    CURRENT_DATE - INTERVAL '15 days'
+),
+(
+    'TXN-BK-00002-01',
+    'a0000002-0000-0000-0000-000000000002',
+    'BK-00002',
+    10.00,
+    'Efectivo $',
+    'EFE-CONTADO',
+    'FAC-2026-105',
+    null,
+    null,
+    'Renovación Membresía',
+    'Caja Restaurante Principal',
+    CURRENT_DATE - INTERVAL '5 days'
+),
+(
+    'TXN-BK-00003-01',
+    'a0000003-0000-0000-0000-000000000003',
+    'BK-00003',
+    10.00,
+    'Tarjeta Débito',
+    'POS-449102',
+    'FAC-2026-088',
+    null,
+    null,
+    'Cobro Membresía Mensual',
+    'Caja Restaurante Principal',
+    CURRENT_DATE - INTERVAL '40 days'
+),
+(
+    'TXN-BK-00005-01',
+    'a0000005-0000-0000-0000-000000000005',
+    'BK-00005',
+    10.00,
+    'Zelle',
+    'ZEL-99120',
+    'FAC-2026-109',
+    null,
+    null,
+    'Cobro Membresía Mensual',
+    'Caja Restaurante Principal',
+    CURRENT_DATE - INTERVAL '2 days'
+)
+ON CONFLICT (transaccion_id) DO UPDATE SET
+    monto_usd = EXCLUDED.monto_usd,
+    metodo_pago = EXCLUDED.metodo_pago,
+    referencia_pago = EXCLUDED.referencia_pago,
+    numero_factura = EXCLUDED.numero_factura,
+    tasa_cambio = EXCLUDED.tasa_cambio,
+    monto_bs = EXCLUDED.monto_bs;
+

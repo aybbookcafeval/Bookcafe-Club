@@ -20,7 +20,7 @@ import {
   Phone,
   Tag
 } from 'lucide-react';
-import { formatUSD, formatBs, getKidAvatar } from '../mockData.js';
+import { formatUSD, formatBs, getKidAvatar } from '../utils/memberHelpers.js';
 
 /**
  * Modal de Comprobante / Recibo Detallado de Pago

@@ -22,7 +22,7 @@ import {
   RefreshCw,
   ArrowRight
 } from 'lucide-react';
-import { isBirthdayThisMonth, calculateAge, checkIsActiveAndValid, getKidAvatar } from '../mockData.js';
+import { isBirthdayThisMonth, calculateAge, checkIsActiveAndValid, getKidAvatar } from '../utils/memberHelpers.js';
 
 export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile }) {
   const [searchTerm, setSearchTerm] = useState('');

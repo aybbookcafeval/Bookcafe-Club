@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   CreditCard, 
   Search, 
@@ -35,13 +35,11 @@ import {
 import { 
   calculateAge, 
   checkIsActiveAndValid, 
-  getTasaDolarFromStorage, 
-  saveTasaDolarToStorage, 
   DEFAULT_TASA_DOLAR, 
   formatUSD, 
   formatBs,
   getKidAvatar
-} from '../mockData.js';
+} from '../utils/memberHelpers.js';
 import PaymentReceiptModal from './PaymentReceiptModal.jsx';
 
 export default function AdminPanel({
@@ -49,13 +47,21 @@ export default function AdminPanel({
   onApprovePayment,
   initialFilterCode = '',
   onViewChildProfile,
-  memberships = []
+  memberships = [],
+  tasaDolar: propTasaDolar,
+  onUpdateTasa
 }) {
   const [searchTerm, setSearchTerm] = useState(initialFilterCode || '');
   const [statusFilter, setStatusFilter] = useState('todas'); // 'todas' | 'activa' | 'pendiente' | 'vencida'
 
-  // Tasa del dólar en Bs. (se puede modificar manualmente en el modal y se almacena en memoria/storage)
-  const [tasaDolar, setTasaDolar] = useState(() => getTasaDolarFromStorage());
+  // Tasa del dólar en Bs. sincronizada con Supabase
+  const [tasaDolar, setTasaDolar] = useState(propTasaDolar || DEFAULT_TASA_DOLAR);
+
+  useEffect(() => {
+    if (propTasaDolar && propTasaDolar > 0) {
+      setTasaDolar(propTasaDolar);
+    }
+  }, [propTasaDolar]);
 
   // Formas de pago disponibles y configuración de referencia
   const METODOS_PAGO = [
@@ -252,9 +258,11 @@ export default function AdminPanel({
       return;
     }
 
-    // Actualizar y recordar la tasa editada manualmente para futuros cobros
+    // Actualizar y propagar la tasa editada manualmente a la base de datos
     setTasaDolar(parsedModalTasa);
-    saveTasaDolarToStorage(parsedModalTasa);
+    if (onUpdateTasa) {
+      onUpdateTasa(parsedModalTasa);
+    }
 
     setIsSubmitting(true);
 

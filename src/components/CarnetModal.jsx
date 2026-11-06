@@ -34,7 +34,7 @@ import {
   isBirthdayThisMonth, 
   checkIsActiveAndValid, 
   getKidAvatar 
-} from '../mockData.js';
+} from '../utils/memberHelpers.js';
 import { 
   generateCarnetDataUrl, 
   triggerBlobDownload 
