@@ -77,7 +77,7 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
           Validación con Código de Socio
         </h1>
         <p className="text-sm text-neutral-600 mt-1">
-          Ingresa el código del carnet del niño (ej: KID-101), teléfono o cédula del tutor para validar beneficios en mesa.
+          Ingresa el código del carnet del niño (ej: BK-00001), teléfono o cédula del tutor para validar beneficios en mesa.
         </p>
       </div>
 
@@ -92,7 +92,7 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Ingresa código (ej: KID-101), teléfono o cédula del tutor..."
+              placeholder="Ingresa código (ej: BK-00001), teléfono o cédula del tutor..."
               className="w-full pl-11 pr-24 py-3.5 bg-white border border-neutral-300 rounded-xl text-neutral-900 placeholder:text-neutral-400 font-medium text-base shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
             />
             {searchTerm && (
@@ -124,11 +124,11 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
                ======================================================== */
             <div className="rounded-2xl bg-gradient-to-b from-emerald-600 to-emerald-700 text-white shadow-xl overflow-hidden border border-emerald-500 animate-in fade-in zoom-in-95 duration-200">
               {/* Header de la tarjeta */}
-              <div className="px-6 py-5 md:px-8 md:py-6 border-b border-emerald-500/50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-emerald-700/40">
-                <div className="flex items-center gap-4">
-                  {/* FOTO DE PERFIL DEL NIÑO */}
-                  <div className="relative shrink-0">
-                    <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-white shadow-md bg-white">
+              <div className="px-6 py-5 md:px-8 md:py-6 border-b border-emerald-500/50 flex flex-col md:flex-row items-center gap-6 bg-emerald-700/40">
+                {/* Lado izquierdo (50% en escritorio): Contiene la foto (w-64 h-64) */}
+                <div className="w-full md:w-1/2 flex justify-center">
+                  <div className="relative">
+                    <div className="w-64 h-64 rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-white">
                       <img
                         src={getKidAvatar(searchedMember)}
                         alt={searchedMember.nombreNino}
@@ -139,23 +139,23 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
                       <CheckCircle2 className="w-4 h-4 fill-emerald-100" />
                     </div>
                   </div>
-
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs uppercase tracking-wider font-extrabold bg-emerald-950/40 text-corporate-200 px-2.5 py-0.5 rounded">
-                        Membresía Activa y Vigente
-                      </span>
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-black mt-0.5 tracking-tight text-white">
-                      {searchedMember.nombreNino}
-                    </h2>
-                  </div>
                 </div>
 
-                <div className="text-left md:text-right bg-corporate-800/60 md:bg-transparent p-3 md:p-0 rounded-xl">
-                  <div className="text-xs text-corporate-200 font-medium">Código de Socio</div>
-                  <div className="text-2xl font-mono font-extrabold tracking-wider text-white">
-                    {searchedMember.codigo}
+                {/* Lado derecho (50% en escritorio): Contiene en orden vertical la etiqueta de estatus, el nombre y el código */}
+                <div className="w-full md:w-1/2 text-center md:text-left flex flex-col items-center md:items-start gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs uppercase tracking-wider font-extrabold bg-emerald-950/40 text-corporate-200 px-3 py-1 rounded">
+                      Membresía Activa y Vigente
+                    </span>
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-black tracking-tight text-white">
+                    {searchedMember.nombreNino}
+                  </h2>
+                  <div className="bg-emerald-800/60 border border-emerald-400/30 px-4 py-2.5 rounded-xl text-left">
+                    <div className="text-xs text-corporate-200 font-medium">Código de Socio</div>
+                    <div className="text-2xl font-mono font-extrabold tracking-wider text-white">
+                      {searchedMember.codigo}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -284,11 +284,12 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
               }`}
             >
               <div className="p-6 md:p-8 space-y-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    {/* FOTO DE PERFIL DEL NIÑO */}
-                    <div className="relative shrink-0">
-                      <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-white/60 shadow-md bg-white/20">
+                {/* Header 50/50: Foto izquierda (w-64 h-64), Datos derecha */}
+                <div className="flex flex-col md:flex-row items-center gap-6 pb-6 border-b border-white/20">
+                  {/* Lado izquierdo (50% en escritorio): Contiene la foto (w-64 h-64) */}
+                  <div className="w-full md:w-1/2 flex justify-center">
+                    <div className="relative">
+                      <div className="w-64 h-64 rounded-2xl overflow-hidden border-4 border-white/60 shadow-2xl bg-white/20">
                         <img
                           src={getKidAvatar(searchedMember)}
                           alt={searchedMember.nombreNino}
@@ -303,20 +304,20 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
                         )}
                       </div>
                     </div>
-
-                    <div>
-                      <div className="inline-block text-xs font-black uppercase tracking-wider bg-black/25 px-2.5 py-0.5 rounded mb-1">
-                        {isPending ? 'Membresía Pendiente de Pago' : 'Membresía Vencida / Inactiva'}
-                      </div>
-                      <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                        {searchedMember.nombreNino}
-                      </h2>
-                    </div>
                   </div>
 
-                  <div className="bg-black/20 px-4 py-2 rounded-xl">
-                    <span className="text-xs text-white/80 block">Código</span>
-                    <span className="font-mono font-bold text-xl">{searchedMember.codigo}</span>
+                  {/* Lado derecho (50% en escritorio): Contiene en orden vertical la etiqueta de estatus, el nombre y el código */}
+                  <div className="w-full md:w-1/2 text-center md:text-left flex flex-col items-center md:items-start gap-3">
+                    <div className="inline-block text-xs font-black uppercase tracking-wider bg-black/25 px-3 py-1 rounded">
+                      {isPending ? 'Membresía Pendiente de Pago' : 'Membresía Vencida / Inactiva'}
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
+                      {searchedMember.nombreNino}
+                    </h2>
+                    <div className="bg-black/20 px-4 py-2.5 rounded-xl border border-white/10 text-left">
+                      <div className="text-xs text-white/80 font-medium">Código de Socio</div>
+                      <div className="font-mono font-bold text-2xl text-white">{searchedMember.codigo}</div>
+                    </div>
                   </div>
                 </div>
 
@@ -409,7 +410,7 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
             <div className="bg-neutral-800/80 rounded-xl p-4 text-xs text-neutral-300 max-w-md mx-auto text-left space-y-1">
               <p className="font-semibold text-white">Posibles causas:</p>
               <ul className="list-disc pl-4 space-y-0.5 text-neutral-400">
-                <li>El carnet fue escrito incorrectamente (ej: KID-101).</li>
+                <li>El carnet fue escrito incorrectamente (ej: BK-00001).</li>
                 <li>El tutor dio otro número de teléfono en su registro.</li>
                 <li>El cliente aún no se ha registrado en el Club Infantil.</li>
               </ul>
@@ -435,7 +436,7 @@ export default function Scanner({ afiliados, onSwitchToCaja, onViewChildProfile 
           </div>
           <h3 className="text-lg font-bold text-neutral-900">Listo para validar con código de socio</h3>
           <p className="text-sm text-neutral-500 max-w-md mx-auto mt-1 mb-6">
-            Escribe el código que aparece en el carnet del niño (ej: KID-101), o el teléfono / cédula del tutor.
+            Escribe el código que aparece en el carnet del niño (ej: BK-00001), o el teléfono / cédula del tutor.
           </p>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl mx-auto text-left text-xs text-neutral-600">

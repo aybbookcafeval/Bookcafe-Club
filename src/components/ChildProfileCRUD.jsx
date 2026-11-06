@@ -204,7 +204,7 @@ export default function ChildProfileCRUD({
     });
   }, [afiliados, searchTerm, statusFilter]);
 
-  // Generar sugerencia de código automático (ej: KID-108)
+  // Generar sugerencia de código automático (ej: BK-00008)
   const generateNextCode = () => {
     const existingNumbers = afiliados
       .map(a => {
@@ -212,8 +212,8 @@ export default function ChildProfileCRUD({
         return match ? parseInt(match[0], 10) : 0;
       })
       .filter(n => !isNaN(n));
-    const max = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 100;
-    return `KID-${max + 1}`;
+    const max = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
+    return `BK-${(max + 1).toString().padStart(5, '0')}`;
   };
 
   // Subir imagen desde dispositivo local (cámara o galería)
@@ -376,7 +376,7 @@ export default function ChildProfileCRUD({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por niño, código (ej: KID-101), tutor, C.I., teléfono o alergia..."
+              placeholder="Buscar por niño, código (ej: BK-00001), tutor, C.I., teléfono o alergia..."
               className="w-full pl-9 pr-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-corporate-500 focus:bg-white transition-all"
             />
             {searchTerm && (
@@ -1138,7 +1138,7 @@ export default function ChildProfileCRUD({
                     onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
                     required
                     className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl font-mono font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-corporate-500"
-                    placeholder="KID-108"
+                    placeholder="BK-00008"
                   />
                 </div>
 

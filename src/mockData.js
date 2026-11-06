@@ -119,139 +119,7 @@ export const PRESET_AVATARS = [
   }
 ];
 
-export const INITIAL_AFILIADOS = [
-  {
-    id: 'kid-001',
-    codigo: 'KID-101',
-    nombreNino: 'Mateo González',
-    fotoPerfil: 'https://images.unsplash.com/photo-1543332164-6e82f355badc?auto=format&fit=crop&w=400&q=80',
-    fechaNacimiento: `${currentYear - 6}-${currentMonth}-${currentDay}`,
-    tutorNombre: 'Carlos González',
-    tutorCedula: 'V-18.452.901',
-    parentescoTutor: 'Padre',
-    tutorTelefono: '5512345678',
-    estado: 'activa',
-    fechaInicio: formatDateIso(hace15Dias),
-    fechaVencimiento: formatDateIso(en15Dias),
-    montoPagado: 25.0,
-    metodoPago: 'Pago Móvil',
-    referenciaPago: 'PM-894120',
-    numeroFactura: 'FAC-2026-001',
-    tasaCambio: 65.0,
-    montoBs: 1625.0,
-    alergias: 'Ninguna conocida',
-    notas: 'Le encanta pintar manteles y el jugo de manzana'
-  },
-  {
-    id: 'kid-002',
-    codigo: 'KID-102',
-    nombreNino: 'Sofía Rodríguez',
-    fotoPerfil: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
-    fechaNacimiento: `${currentYear - 8}-03-14`,
-    tutorNombre: 'Mariana Pérez',
-    tutorCedula: 'V-20.119.432',
-    parentescoTutor: 'Madre',
-    tutorTelefono: '5587654321',
-    estado: 'activa',
-    fechaInicio: formatDateIso(hace5Dias),
-    fechaVencimiento: formatDateIso(addDays(today, 25)),
-    montoPagado: 25.0,
-    metodoPago: 'Tarjeta',
-    referenciaPago: 'REF-4821',
-    numeroFactura: 'FAC-2026-002',
-    tasaCambio: 65.0,
-    montoBs: 1625.0,
-    alergias: 'Intolerancia a la lactosa (leche deslactosada)',
-    notas: 'Mesa preferida cerca del área de juegos'
-  },
-  {
-    id: 'kid-003',
-    codigo: 'KID-103',
-    nombreNino: 'Lucas Morales',
-    fotoPerfil: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?auto=format&fit=crop&w=400&q=80',
-    fechaNacimiento: `${currentYear - 5}-07-22`,
-    tutorNombre: 'Alejandro Morales',
-    tutorCedula: 'V-24.891.055',
-    parentescoTutor: 'Hermano',
-    tutorTelefono: '5543219876',
-    estado: 'pendiente',
-    fechaInicio: formatDateIso(today),
-    fechaVencimiento: formatDateIso(addDays(today, 30)),
-    montoPagado: 0.0,
-    metodoPago: '',
-    referenciaPago: '',
-    numeroFactura: '',
-    tasaCambio: null,
-    montoBs: 0.0,
-    alergias: 'Alergia severa al maní / cacahuate',
-    notas: 'Pendiente de registrar pago y referencia en caja'
-  },
-  {
-    id: 'kid-004',
-    codigo: 'KID-104',
-    nombreNino: 'Valentina Ruiz',
-    fotoPerfil: 'https://images.unsplash.com/photo-1595454223600-91fb571348ec?auto=format&fit=crop&w=400&q=80',
-    fechaNacimiento: `${currentYear - 9}-11-05`,
-    tutorNombre: 'Patricia Mendoza',
-    tutorCedula: 'V-16.782.340',
-    parentescoTutor: 'Madre',
-    tutorTelefono: '5599887766',
-    estado: 'vencida',
-    fechaInicio: formatDateIso(hace45Dias),
-    fechaVencimiento: formatDateIso(hace10Dias),
-    montoPagado: 25.0,
-    metodoPago: 'Transferencia',
-    referenciaPago: 'TRF-0019284',
-    numeroFactura: 'FAC-2026-003',
-    tasaCambio: 65.0,
-    montoBs: 1625.0,
-    alergias: 'Ninguna',
-    notas: 'Socia frecuente de fin de semana'
-  },
-  {
-    id: 'kid-005',
-    codigo: 'KID-105',
-    nombreNino: 'Emma Castro',
-    fotoPerfil: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=400&q=80',
-    fechaNacimiento: `${currentYear - 4}-09-19`,
-    tutorNombre: 'Roberto Castro',
-    tutorCedula: 'V-11.450.892',
-    parentescoTutor: 'Abuelo',
-    tutorTelefono: '5533221100',
-    estado: 'activa',
-    fechaInicio: formatDateIso(hace10Dias),
-    fechaVencimiento: formatDateIso(addDays(today, 20)),
-    montoPagado: 25.0,
-    metodoPago: 'Sended',
-    referenciaPago: 'SND-77123',
-    numeroFactura: 'FAC-2026-004',
-    tasaCambio: 65.0,
-    montoBs: 1625.0,
-    alergias: 'Celiaquía (sin gluten)',
-    notas: 'Siempre pedir menú sin TACC'
-  },
-  {
-    id: 'kid-006',
-    codigo: 'KID-106',
-    nombreNino: 'Emiliano Vargas',
-    fotoPerfil: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=400&q=80',
-    fechaNacimiento: `${currentYear - 7}-01-30`,
-    tutorNombre: 'Lucía Fernández',
-    tutorCedula: 'V-21.345.678',
-    parentescoTutor: 'Tía',
-    tutorTelefono: '5566778899',
-    estado: 'pendiente',
-    fechaInicio: formatDateIso(today),
-    fechaVencimiento: formatDateIso(addDays(today, 30)),
-    montoPagado: 0.0,
-    metodoPago: '',
-    referenciaPago: '',
-    tasaCambio: null,
-    montoBs: 0.0,
-    alergias: 'Ninguna',
-    notas: 'Registro express online'
-  }
-];
+export const INITIAL_AFILIADOS = [];
 
 export const STORAGE_KEY = 'club_infantil_afiliados';
 
@@ -267,89 +135,22 @@ export const getKidAvatar = (afiliado, fallbackIndex = 0) => {
 };
 
 /**
- * Obtiene los afiliados de localStorage o inicializa con los datos mock.
- * Asegura que todos los afiliados tengan foto de perfil asignada.
+ * Obtiene los afiliados de localStorage como caché sin inyectar datos falsos.
  */
 export const getAfiliadosFromStorage = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_AFILIADOS));
-      return INITIAL_AFILIADOS;
+      return [];
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return INITIAL_AFILIADOS;
+    if (!Array.isArray(parsed)) {
+      return [];
     }
-
-    // Auto-migración suave si los datos previos no tenían fotos de perfil o historial de pagos
-    let needsResave = false;
-    const normalized = parsed.map((item, idx) => {
-      let changed = false;
-      let foto = item.fotoPerfil;
-      if (!foto || foto.trim() === '') {
-        foto = PRESET_AVATARS[idx % PRESET_AVATARS.length].url;
-        changed = true;
-      }
-
-      let history = Array.isArray(item.historialPagos) ? item.historialPagos : [];
-      if (history.length === 0 && (item.montoPagado > 0 || item.metodoPago)) {
-        const montoUSD = Number(item.montoPagado) > 500 ? 25.0 : Number(item.montoPagado) || 25.0;
-        const tasa = item.tasaCambio || DEFAULT_TASA_DOLAR;
-        const montoBs = item.montoBs || (montoUSD * tasa);
-        history = [
-          {
-            id: `TXN-${item.codigo || 'KID'}-01`,
-            fecha: item.fechaInicio || new Date().toISOString().split('T')[0],
-            hora: '14:30',
-            montoUSD,
-            metodoPago: item.metodoPago || 'Pago Móvil',
-            referenciaPago: item.referenciaPago || 'PM-894120',
-            numeroFactura: item.numeroFactura || `FAC-2026-${(idx + 1).toString().padStart(3, '0')}`,
-            tasaCambio: tasa,
-            montoBs,
-            concepto: 'Membresía Oficial Club Infantil (30 Días)',
-            cajero: 'Caja Restaurante Principal'
-          }
-        ];
-        changed = true;
-      } else if (history.length > 0) {
-        // Asegurar que cada ítem del historial tenga numeroFactura
-        history = history.map((h, hIdx) => ({
-          ...h,
-          numeroFactura: h.numeroFactura || `FAC-2026-${(idx + 1).toString().padStart(3, '0')}`
-        }));
-      }
-
-      if (item.montoPagado && Number(item.montoPagado) > 500) {
-        changed = true;
-      }
-
-      if (changed) {
-        needsResave = true;
-        return {
-          ...item,
-          fotoPerfil: foto,
-          montoPagado: Number(item.montoPagado) > 500 ? 25.0 : Number(item.montoPagado) || 0,
-          tasaCambio: item.tasaCambio || DEFAULT_TASA_DOLAR,
-          montoBs: Number(item.montoPagado) > 500 ? Number(item.montoPagado) : item.montoBs || 0,
-          historialPagos: history
-        };
-      }
-      return {
-        ...item,
-        historialPagos: history
-      };
-    });
-
-    if (needsResave) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-    }
-
-    return normalized;
+    return parsed;
   } catch (error) {
     console.error('Error al leer de localStorage:', error);
-    return INITIAL_AFILIADOS;
+    return [];
   }
 };
 
@@ -483,8 +284,8 @@ export const generateWebhookDummy = (existingCount = 0) => {
   const fechaVencimiento = formatDateIso(addDays(today, 30));
 
   return {
-    id: 'kid-' + Date.now().toString(36),
-    codigo: `KID-${nextNum}`,
+    id: 'bk-' + Date.now().toString(36),
+    codigo: `BK-${nextNum.toString().padStart(5, '0')}`,
     nombreNino: pick.nino,
     fotoPerfil: pick.foto,
     fechaNacimiento: `${currentYear - Math.floor(Math.random() * 6 + 4)}-${String(Math.floor(Math.random() * 12 + 1)).padStart(2, '0')}-15`,
