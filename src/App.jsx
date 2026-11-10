@@ -26,7 +26,8 @@ import AdminSettings from './components/AdminSettings.jsx';
 import { supabase } from './utils/supabaseClient.js';
 import { 
   DEFAULT_MEMBERSHIP_CONFIG,
-  DEFAULT_TASA_DOLAR
+  DEFAULT_TASA_DOLAR,
+  DEFAULT_TASA_EURO
 } from './utils/memberHelpers.js';
 
 export default function App() {
@@ -39,8 +40,11 @@ export default function App() {
   // Estado global de tipos de membresías desde Supabase
   const [memberships, setMemberships] = useState(DEFAULT_MEMBERSHIP_CONFIG);
 
-  // Estado de tasa referencial del dólar desde Supabase
-  const [tasaDolar, setTasaDolar] = useState(DEFAULT_TASA_DOLAR);
+  // Estado de tasa referencial del dólar y euro desde Supabase (tabla tasas_cambio)
+  const [tasaDolar, setTasaDolar] = useState(0);
+  const [tasaEuro, setTasaEuro] = useState(0);
+  const [fechaTasas, setFechaTasas] = useState('');
+  const [historialTasas, setHistorialTasas] = useState([]);
 
   // Estado para pre-filtrar o saltar a un afiliado al cambiar de pestaña
   const [targetCodeForAdmin, setTargetCodeForAdmin] = useState('');
@@ -147,35 +151,58 @@ export default function App() {
       // Membresías desde Supabase
       const { data: memData, error: memError } = await supabase.from('membresias').select('*');
       if (!memError && memData && memData.length > 0) {
-        const mappedMem = memData.map((m) => ({
-          id: m.id,
-          nombre: m.nombre,
-          codigo: m.codigo,
-          precioUSD: Number(m.precio_usd || m.precioUSD || 10),
-          duracionDias: m.duracion_dias || m.duracionDias || 30,
-          estado: m.estado || 'activa',
-          moneda: m.moneda || 'USD',
-          descripcion: m.descripcion || '',
-          beneficios: m.beneficios || []
-        }));
+        const mappedMem = memData.map((m) => {
+          const precioAfiliacion = m.precio_afiliacion_usd !== null && m.precio_afiliacion_usd !== undefined
+            ? Number(m.precio_afiliacion_usd)
+            : (m.precioAfiliacionUSD !== undefined ? Number(m.precioAfiliacionUSD) : 15);
+          const precioMensualidad = m.precio_mensualidad_usd !== null && m.precio_mensualidad_usd !== undefined
+            ? Number(m.precio_mensualidad_usd)
+            : (Number(m.precio_usd || m.precioUSD || 10));
+
+          return {
+            id: m.id,
+            nombre: m.nombre,
+            codigo: m.codigo,
+            precioAfiliacionUSD: precioAfiliacion,
+            precioMensualidadUSD: precioMensualidad,
+            precioUSD: precioMensualidad,
+            duracionDias: m.duracion_dias || m.duracionDias || 30,
+            estado: m.estado || 'activa',
+            moneda: m.moneda || 'USD',
+            descripcion: m.descripcion || '',
+            beneficios: m.beneficios || []
+          };
+        });
         setMemberships(mappedMem);
       }
 
-      // Tasa de cambio desde configuracion en Supabase
+      // Cargar tasas oficiales de cambio (USD y EUR) desde public.tasas_cambio
       try {
-        const { data: configData, error: configError } = await supabase
-          .from('configuracion')
-          .select('valor')
-          .eq('clave', 'tasa_dolar')
-          .maybeSingle();
-        if (!configError && configData && configData.valor) {
-          const parsed = parseFloat(configData.valor);
-          if (!isNaN(parsed) && parsed > 0) {
-            setTasaDolar(parsed);
-          }
+        const { data: tasasData, error: tasasError } = await supabase
+          .from('tasas_cambio')
+          .select('*')
+          .order('fecha', { ascending: false })
+          .limit(10);
+
+        if (!tasasError && Array.isArray(tasasData) && tasasData.length > 0) {
+          const latest = tasasData[0];
+          const valUSD = Number(latest.tasa_usd);
+          const valEUR = Number(latest.tasa_eur);
+          if (!isNaN(valUSD) && valUSD > 0) setTasaDolar(valUSD);
+          if (!isNaN(valEUR) && valEUR > 0) setTasaEuro(valEUR);
+          if (latest.fecha) setFechaTasas(latest.fecha);
+          setHistorialTasas(tasasData);
+          console.log('[Supabase] Tasas cargadas exitosamente desde public.tasas_cambio:', {
+            usd: valUSD,
+            eur: valEUR,
+            fecha: latest.fecha,
+            totalRegistros: tasasData.length
+          });
+        } else {
+          console.info('[Supabase] public.tasas_cambio no tiene registros aún o devolvió lista vacía.');
         }
       } catch (e) {
-        // configuracion opcional
+        console.warn('[Supabase Tasas Exception]', e);
       }
     } catch (err) {
       console.warn('[Supabase] Error conectando a Supabase:', err);
@@ -188,13 +215,16 @@ export default function App() {
   useEffect(() => {
     loadFromSupabase();
 
-    // Suscripción en tiempo real a las tablas de socios y pagos
+    // Suscripción en tiempo real a las tablas de socios, pagos y tasas_cambio
     const realTimeChannel = supabase
       .channel('db-realtime-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'socios' }, () => {
         loadFromSupabase();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos' }, () => {
+        loadFromSupabase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasas_cambio' }, () => {
         loadFromSupabase();
       })
       .subscribe();
@@ -210,37 +240,35 @@ export default function App() {
       const isValidUUID = member.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(member.id);
       const socioId = isValidUUID ? member.id : crypto.randomUUID();
 
+      // Buscar membresia_id correspondiente en las membresías registradas
+      const matchedMembresia = (memberships || []).find(
+        (m) => m.id === member.membresiaId || m.codigo === member.planMembresia || m.nombre === member.planMembresia
+      );
+      const isValidMemUUID = matchedMembresia?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(matchedMembresia.id);
+
       const payload = {
         id: socioId,
         codigo: member.codigo,
         nombre_nino: member.nombreNino,
-        foto_perfil: member.fotoPerfil || '',
+        foto_perfil: member.fotoPerfil || null,
         fecha_nacimiento: member.fechaNacimiento || '2020-01-01',
         tutor_nombre: member.tutorNombre || 'Tutor',
-        tutor_cedula: member.tutorCedula || '',
+        tutor_cedula: member.tutorCedula || null,
         parentesco_tutor: member.parentescoTutor || 'Padre',
         tutor_telefono: member.tutorTelefono || '',
         estado: member.estado || 'pendiente',
         plan_membresia: member.planMembresia || 'Estándar',
         fecha_inicio: member.fechaInicio || null,
         fecha_vencimiento: member.fechaVencimiento || null,
-        monto_pagado: Number(member.montoPagado) || 0,
-        alergias: member.alergias || '',
-        notas: member.notas || '',
+        alergias: member.alergias || null,
+        notas: member.notas || null,
+        membresia_id: isValidMemUUID ? matchedMembresia.id : (member.membresiaId || null),
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase.from('socios').upsert({
-        ...payload,
-        historial_pagos: member.historialPagos || []
-      });
-
+      const { error } = await supabase.from('socios').upsert(payload);
       if (error) {
-        if (error.message?.includes('historial_pagos')) {
-          await supabase.from('socios').upsert(payload);
-        } else {
-          console.warn('[Supabase Sync Error]', error.message);
-        }
+        console.warn('[Supabase Sync Error]', error.message);
       }
     } catch (err) {
       console.warn('[Supabase Sync Exception]', err);
@@ -253,34 +281,154 @@ export default function App() {
       for (const m of newMemberships) {
         const isUUID = m.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(m.id);
         const memId = isUUID ? m.id : '1fd3cb06-6dc4-4393-bf5e-da17c60c7523';
-        await supabase.from('membresias').upsert({
+        const precioAfiliacion = Number(m.precioAfiliacionUSD !== undefined ? m.precioAfiliacionUSD : 15);
+        const precioMensualidad = Number(m.precioMensualidadUSD !== undefined ? m.precioMensualidadUSD : (m.precioUSD || 10));
+
+        const fullPayload = {
           id: memId,
           codigo: m.codigo,
           nombre: m.nombre,
-          precio_usd: Number(m.precioUSD) || 10,
+          precio_afiliacion_usd: precioAfiliacion,
+          precio_mensualidad_usd: precioMensualidad,
+          precio_usd: precioMensualidad,
           duracion_dias: Number(m.duracionDias) || 30,
           estado: m.estado || 'activa',
           moneda: m.moneda || 'USD',
           descripcion: m.descripcion || '',
           beneficios: m.beneficios || [],
           updated_at: new Date().toISOString()
-        });
+        };
+
+        const { error } = await supabase.from('membresias').upsert(fullPayload);
+        if (error && error.message?.includes('precio_afiliacion_usd')) {
+          // Fallback seguro si las columnas nuevas no han sido creadas en Supabase
+          await supabase.from('membresias').upsert({
+            id: memId,
+            codigo: m.codigo,
+            nombre: m.nombre,
+            precio_usd: precioMensualidad,
+            duracion_dias: Number(m.duracionDias) || 30,
+            estado: m.estado || 'activa',
+            moneda: m.moneda || 'USD',
+            descripcion: m.descripcion || '',
+            beneficios: m.beneficios || [],
+            updated_at: new Date().toISOString()
+          });
+        }
       }
     } catch (err) {
       console.warn('[Supabase Membresias Sync Error]', err);
     }
   };
 
-  const handleUpdateTasa = async (newTasa) => {
-    setTasaDolar(newTasa);
+  const handleRefreshTasas = async (showToast = true) => {
     try {
-      await supabase.from('configuracion').upsert({
-        clave: 'tasa_dolar',
-        valor: String(newTasa),
-        updated_at: new Date().toISOString()
+      const { data: tasasData, error: tasasError } = await supabase
+        .from('tasas_cambio')
+        .select('*')
+        .order('fecha', { ascending: false })
+        .limit(10);
+
+      if (tasasError) {
+        if (showToast) {
+          setToast({
+            type: 'error',
+            title: 'Error al consultar BD',
+            message: tasasError.message
+          });
+        }
+        return;
+      }
+
+      if (tasasData && tasasData.length > 0) {
+        const latest = tasasData[0];
+        const valUSD = Number(latest.tasa_usd);
+        const valEUR = Number(latest.tasa_eur);
+        if (!isNaN(valUSD) && valUSD > 0) setTasaDolar(valUSD);
+        if (!isNaN(valEUR) && valEUR > 0) setTasaEuro(valEUR);
+        if (latest.fecha) setFechaTasas(latest.fecha);
+        setHistorialTasas(tasasData);
+
+        if (showToast) {
+          setToast({
+            type: 'success',
+            title: 'Tasas Cargadas de Base de Datos',
+            message: `Dólar: Bs. ${valUSD.toFixed(2)} | Euro: Bs. ${valEUR.toFixed(2)} (Fecha: ${latest.fecha})`
+          });
+        }
+      } else {
+        if (showToast) {
+          setToast({
+            type: 'info',
+            title: 'Tabla tasas_cambio sin registros',
+            message: 'La tabla existe en Supabase pero aún no contiene filas. Puedes registrar la tasa inicial del día o ejecutar el comando INSERT en SQL Editor.'
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[Error Refresh Tasas]', e);
+    }
+  };
+
+  const handleUpdateTasa = async (params) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    let newUSD = tasaDolar;
+    let newEUR = tasaEuro;
+    let newFecha = fechaTasas || todayStr;
+
+    if (typeof params === 'object' && params !== null) {
+      if (params.tasaUSD !== undefined) newUSD = Number(params.tasaUSD) || newUSD;
+      if (params.tasaEUR !== undefined) newEUR = Number(params.tasaEUR) || newEUR;
+      if (params.fecha) newFecha = params.fecha;
+    } else if (typeof params === 'number' || typeof params === 'string') {
+      newUSD = Number(params) || newUSD;
+    }
+
+    setTasaDolar(newUSD);
+    setTasaEuro(newEUR);
+    setFechaTasas(newFecha);
+
+    try {
+      // 1. Guardar o actualizar en la tabla oficial public.tasas_cambio (USD y EUR en la misma fila)
+      const { error: tasaErr } = await supabase.from('tasas_cambio').upsert(
+        {
+          fecha: newFecha,
+          tasa_usd: newUSD,
+          tasa_eur: newEUR,
+          created_at: new Date().toISOString()
+        },
+        { onConflict: 'fecha' }
+      );
+
+      if (tasaErr) {
+        console.warn('[Supabase tasas_cambio Error]', tasaErr.message);
+        if (tasaErr.code === '42501' || tasaErr.message?.includes('security policy') || tasaErr.message?.includes('violates row-level security')) {
+          setToast({
+            type: 'error',
+            title: 'Permiso RLS en Supabase',
+            message: 'Supabase bloqueó el registro por políticas de seguridad (RLS). Ejecuta en Supabase SQL Editor: ALTER TABLE public.tasas_cambio DISABLE ROW LEVEL SECURITY;'
+          });
+          return;
+        }
+      }
+
+      // Refrescar lista de historial de tasas
+      const { data: updatedList } = await supabase
+        .from('tasas_cambio')
+        .select('*')
+        .order('fecha', { ascending: false })
+        .limit(10);
+      if (updatedList) {
+        setHistorialTasas(updatedList);
+      }
+
+      setToast({
+        type: 'success',
+        title: 'Tasas de Cambio Actualizadas',
+        message: `Dólar: Bs. ${newUSD.toFixed(2)} | Euro: Bs. ${newEUR.toFixed(2)} (${newFecha}) registradas en base de datos.`
       });
     } catch (err) {
-      console.warn('[Supabase Config Save]', err);
+      console.warn('[Supabase Config/Tasas Save Exception]', err);
     }
   };
 
@@ -323,6 +471,7 @@ export default function App() {
       fecha: fechaInicioStr,
       hora: timeStr,
       montoUSD: Number(monto),
+      moneda: details.moneda || (details.metodo === 'Efectivo €' ? 'EUR' : 'USD'),
       metodoPago: details.metodo || 'Efectivo $',
       referenciaPago: details.referencia || 'EFE-CONTADO',
       numeroFactura: facNum,
@@ -357,6 +506,7 @@ export default function App() {
       socio_id: id,
       codigo_socio: existing.codigo,
       monto_usd: Number(monto),
+      moneda: details.moneda || (details.metodo === 'Efectivo €' ? 'EUR' : 'USD'),
       metodo_pago: details.metodo || 'Efectivo $',
       referencia_pago: details.referencia || 'EFE-CONTADO',
       numero_factura: facNum,
@@ -458,10 +608,96 @@ export default function App() {
 
     await syncSocioToSupabase(finalizedMember);
 
+    // Si es un nuevo miembro, enviar el payload al Webhook de n8n configurado en variables de entorno
+    if (isNew) {
+      const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_CREAR_SOCIO || 'https://aybbookcafe.app.n8n.cloud/webhook/crear-nuevo-socio';
+
+      const matchedMem = (memberships || []).find(
+        (m) => m.id === finalizedMember.membresiaId || m.codigo === finalizedMember.planMembresia || m.nombre === finalizedMember.planMembresia
+      );
+      const memId = matchedMem?.id || null;
+
+      const webhookPayload = {
+        event: 'club_infantil.nuevo_socio_creado',
+        timestamp: new Date().toISOString(),
+        source: 'club_infantil_app',
+        // Estructura anidada para n8n ($json.data.nombre_nino, etc.)
+        data: {
+          id: finalizedMember.id,
+          codigo: finalizedMember.codigo,
+          nombre_nino: finalizedMember.nombreNino,
+          nombreNino: finalizedMember.nombreNino,
+          foto_perfil: finalizedMember.fotoPerfil || null,
+          fotoPerfil: finalizedMember.fotoPerfil || null,
+          fecha_nacimiento: finalizedMember.fechaNacimiento || '',
+          fechaNacimiento: finalizedMember.fechaNacimiento || '',
+          tutor_nombre: finalizedMember.tutorNombre || '',
+          tutorNombre: finalizedMember.tutorNombre || '',
+          tutor_cedula: finalizedMember.tutorCedula || null,
+          tutorCedula: finalizedMember.tutorCedula || null,
+          parentesco_tutor: finalizedMember.parentescoTutor || 'Padre',
+          parentescoTutor: finalizedMember.parentescoTutor || 'Padre',
+          tutor_telefono: finalizedMember.tutorTelefono || '',
+          tutorTelefono: finalizedMember.tutorTelefono || '',
+          estado: finalizedMember.estado || 'pendiente',
+          plan_membresia: finalizedMember.planMembresia || 'Estándar',
+          planMembresia: finalizedMember.planMembresia || 'Estándar',
+          fecha_inicio: finalizedMember.fechaInicio || null,
+          fecha_vencimiento: finalizedMember.fechaVencimiento || null,
+          alergias: finalizedMember.alergias || null,
+          notas: finalizedMember.notas || null,
+          membresia_id: memId,
+          created_at: new Date().toISOString()
+        },
+        // Estructura plana en la raíz para acceso directo en nodos n8n ($json.codigo, $json.nombre_nino, etc.)
+        id: finalizedMember.id,
+        codigo: finalizedMember.codigo,
+        nombre_nino: finalizedMember.nombreNino,
+        nombreNino: finalizedMember.nombreNino,
+        foto_perfil: finalizedMember.fotoPerfil || null,
+        fecha_nacimiento: finalizedMember.fechaNacimiento || '',
+        tutor_nombre: finalizedMember.tutorNombre || '',
+        tutor_cedula: finalizedMember.tutorCedula || null,
+        parentesco_tutor: finalizedMember.parentescoTutor || 'Padre',
+        tutor_telefono: finalizedMember.tutorTelefono || '',
+        estado: finalizedMember.estado || 'pendiente',
+        plan_membresia: finalizedMember.planMembresia || 'Estándar',
+        fecha_inicio: finalizedMember.fechaInicio || null,
+        fecha_vencimiento: finalizedMember.fechaVencimiento || null,
+        alergias: finalizedMember.alergias || null,
+        notas: finalizedMember.notas || null,
+        membresia_id: memId
+      };
+
+      console.log(
+        '%c[Webhook n8n - POST ' + webhookUrl + ']',
+        'color: #6366f1; font-weight: bold; font-size: 12px;',
+        webhookPayload
+      );
+
+      try {
+        fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(webhookPayload)
+        })
+          .then((res) => {
+            console.log('[Webhook n8n - Crear Nuevo Socio] Respuesta recibida HTTP status:', res.status);
+          })
+          .catch((err) => {
+            console.warn('[Webhook n8n - Crear Nuevo Socio] Aviso de envío a webhook:', err.message);
+          });
+      } catch (err) {
+        console.warn('[Webhook n8n - Crear Nuevo Socio Exception]', err);
+      }
+    }
+
     setToast({
-      type: 'success',
-      title: isNew ? 'Nueva Ficha Registrada' : 'Ficha Actualizada',
-      message: `${finalizedMember.nombreNino} (${finalizedMember.codigo}) guardado con éxito en la base de datos.`
+      type: isNew ? 'webhook' : 'success',
+      title: isNew ? 'Nuevo Miembro Registrado & Webhook Emitido' : 'Ficha Actualizada',
+      message: `${finalizedMember.nombreNino} (${finalizedMember.codigo}) guardado en base de datos${isNew ? ' y notificado a n8n.' : '.'}`
     });
   };
 
@@ -616,6 +852,8 @@ export default function App() {
             onViewChildProfile={handleViewChildProfile}
             memberships={memberships}
             tasaDolar={tasaDolar}
+            tasaEuro={tasaEuro}
+            fechaTasas={fechaTasas}
             onUpdateTasa={handleUpdateTasa}
           />
         )}
@@ -633,7 +871,11 @@ export default function App() {
             memberships={memberships}
             onSaveMemberships={handleSaveMemberships}
             tasaDolar={tasaDolar}
+            tasaEuro={tasaEuro}
+            fechaTasas={fechaTasas}
+            historialTasas={historialTasas}
             onUpdateTasa={handleUpdateTasa}
+            onRefreshTasas={handleRefreshTasas}
             onShowToast={(t) => setToast(t)}
           />
         )}

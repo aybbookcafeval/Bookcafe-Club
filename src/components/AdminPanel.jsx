@@ -30,12 +30,14 @@ import {
   Eye,
   Clock,
   Building2,
-  MessageCircle
+  MessageCircle,
+  Euro
 } from 'lucide-react';
 import { 
   calculateAge, 
   checkIsActiveAndValid, 
   DEFAULT_TASA_DOLAR, 
+  DEFAULT_TASA_EURO,
   formatUSD, 
   formatBs,
   getKidAvatar
@@ -49,19 +51,35 @@ export default function AdminPanel({
   onViewChildProfile,
   memberships = [],
   tasaDolar: propTasaDolar,
+  tasaEuro: propTasaEuro,
+  fechaTasas: propFechaTasas,
   onUpdateTasa
 }) {
   const [searchTerm, setSearchTerm] = useState(initialFilterCode || '');
   const [statusFilter, setStatusFilter] = useState('todas'); // 'todas' | 'activa' | 'pendiente' | 'vencida'
 
-  // Tasa del dólar en Bs. sincronizada con Supabase
-  const [tasaDolar, setTasaDolar] = useState(propTasaDolar || DEFAULT_TASA_DOLAR);
+  // Tasas de cambio (USD y EUR) en Bs. sincronizadas con Supabase (public.tasas_cambio)
+  const [tasaDolar, setTasaDolar] = useState(propTasaDolar || 0);
+  const [tasaEuro, setTasaEuro] = useState(propTasaEuro || 0);
+  const [fechaTasas, setFechaTasas] = useState(propFechaTasas || '');
 
   useEffect(() => {
     if (propTasaDolar && propTasaDolar > 0) {
       setTasaDolar(propTasaDolar);
     }
   }, [propTasaDolar]);
+
+  useEffect(() => {
+    if (propTasaEuro && propTasaEuro > 0) {
+      setTasaEuro(propTasaEuro);
+    }
+  }, [propTasaEuro]);
+
+  useEffect(() => {
+    if (propFechaTasas) {
+      setFechaTasas(propFechaTasas);
+    }
+  }, [propFechaTasas]);
 
   // Formas de pago disponibles y configuración de referencia
   const METODOS_PAGO = [
@@ -88,7 +106,7 @@ export default function AdminPanel({
     },
     { 
       id: 'Sended', 
-      label: 'Sended', 
+      label: 'Sended ($ USD)', 
       requiresRef: true, 
       isBs: false, 
       placeholder: 'Ej: Referencia o ID Sended' 
@@ -99,6 +117,13 @@ export default function AdminPanel({
       requiresRef: false, 
       isBs: false, 
       placeholder: 'Opcional' 
+    },
+    { 
+      id: 'Efectivo €', 
+      label: 'Efectivo (€ EUR)', 
+      requiresRef: false, 
+      isBs: false, 
+      placeholder: 'Opcional' 
     }
   ];
 
@@ -106,8 +131,12 @@ export default function AdminPanel({
 
   // Modal de Registrar Pago
   const [selectedMember, setSelectedMember] = useState(null);
-  const [montoUSD, setMontoUSD] = useState(defaultPriceUSD); // Monto base estándar en $ USD ($10.00)
-  const [modalTasa, setModalTasa] = useState(String(tasaDolar)); // Tasa editable manualmente en el modal
+  const [tipoCobro, setTipoCobro] = useState('afiliacion'); // 'afiliacion' | 'mensualidad'
+  const [conceptoCobro, setConceptoCobro] = useState('');
+  const [isAutoDetected, setIsAutoDetected] = useState(true);
+  const [monedaCobro, setMonedaCobro] = useState('USD'); // 'USD' | 'EUR'
+  const [montoUSD, setMontoUSD] = useState(defaultPriceUSD); // Monto base estándar en moneda seleccionada
+  const [modalTasa, setModalTasa] = useState(String(tasaDolar)); // Tasa editable manualmente en el modal (Bs. / USD o Bs. / EUR)
   const [metodoPago, setMetodoPago] = useState('Pago Móvil');
   const [referenciaPago, setReferenciaPago] = useState('');
   const [numeroFactura, setNumeroFactura] = useState('');
@@ -203,11 +232,67 @@ export default function AdminPanel({
 
   const openPaymentModal = (member) => {
     setSelectedMember(member);
-    setMontoUSD(defaultPriceUSD); // Monto sugerido de membresía en $ USD
-    setModalTasa(String(tasaDolar));
+
+    // Buscar el plan de membresía correspondiente para obtener las tarifas
+    const matchedPlan = (memberships || []).find(
+      (m) => m.codigo === member.planMembresia || m.nombre === member.planMembresia
+    ) || (memberships && memberships.length > 0 ? memberships[0] : null);
+
+    const pAfiliacion = matchedPlan?.precioAfiliacionUSD !== undefined && matchedPlan?.precioAfiliacionUSD !== null
+      ? Number(matchedPlan.precioAfiliacionUSD)
+      : 15.0;
+
+    const pMensualidad = matchedPlan?.precioMensualidadUSD !== undefined && matchedPlan?.precioMensualidadUSD !== null
+      ? Number(matchedPlan.precioMensualidadUSD)
+      : (matchedPlan?.precioUSD !== undefined ? Number(matchedPlan.precioUSD) : 10.0);
+
+    // Detección automática según historial en la tabla de pagos / socio
+    const previousPayments = Array.isArray(member.historialPagos) ? member.historialPagos.length : 0;
+    const isFirstPayment = previousPayments === 0 && (Number(member.montoPagado) || 0) === 0;
+
+    setIsAutoDetected(true);
+
+    if (isFirstPayment) {
+      setTipoCobro('afiliacion');
+      setMontoUSD(pAfiliacion.toFixed(2));
+      setConceptoCobro('Pago Único de Afiliación / Inscripción (Primeros 30 días)');
+    } else {
+      setTipoCobro('mensualidad');
+      setMontoUSD(pMensualidad.toFixed(2));
+      setConceptoCobro('Renovación Mensualidad Club Infantil (30 Días)');
+    }
+
+    setMonedaCobro('USD');
+    setModalTasa(String(tasaDolar || DEFAULT_TASA_DOLAR));
     setMetodoPago('Pago Móvil');
     setReferenciaPago('');
     setNumeroFactura(`FAC-2026-${Math.floor(100 + Math.random() * 900)}`);
+  };
+
+  const handleSelectTipoCobro = (tipo) => {
+    setTipoCobro(tipo);
+    setIsAutoDetected(false); // Seleccionado manualmente por el cajero
+    if (!selectedMember) return;
+
+    const matchedPlan = (memberships || []).find(
+      (m) => m.codigo === selectedMember.planMembresia || m.nombre === selectedMember.planMembresia
+    ) || (memberships && memberships.length > 0 ? memberships[0] : null);
+
+    const pAfiliacion = matchedPlan?.precioAfiliacionUSD !== undefined && matchedPlan?.precioAfiliacionUSD !== null
+      ? Number(matchedPlan.precioAfiliacionUSD)
+      : 15.0;
+
+    const pMensualidad = matchedPlan?.precioMensualidadUSD !== undefined && matchedPlan?.precioMensualidadUSD !== null
+      ? Number(matchedPlan.precioMensualidadUSD)
+      : (matchedPlan?.precioUSD !== undefined ? Number(matchedPlan.precioUSD) : 10.0);
+
+    if (tipo === 'afiliacion') {
+      setMontoUSD(pAfiliacion.toFixed(2));
+      setConceptoCobro('Pago Único de Afiliación / Inscripción (Primeros 30 días)');
+    } else {
+      setMontoUSD(pMensualidad.toFixed(2));
+      setConceptoCobro('Renovación Mensualidad Club Infantil (30 Días)');
+    }
   };
 
   const closePaymentModal = () => {
@@ -216,6 +301,22 @@ export default function AdminPanel({
     setNumeroFactura('');
     setIsSubmitting(false);
   };
+
+  // Plan del socio seleccionado para el modal
+  const currentModalPlan = useMemo(() => {
+    if (!selectedMember) return null;
+    return (memberships || []).find(
+      (m) => m.codigo === selectedMember.planMembresia || m.nombre === selectedMember.planMembresia
+    ) || (memberships && memberships.length > 0 ? memberships[0] : null);
+  }, [selectedMember, memberships]);
+
+  const modalPlanAfiliacion = currentModalPlan?.precioAfiliacionUSD !== undefined && currentModalPlan?.precioAfiliacionUSD !== null
+    ? Number(currentModalPlan.precioAfiliacionUSD)
+    : 15.0;
+
+  const modalPlanMensualidad = currentModalPlan?.precioMensualidadUSD !== undefined && currentModalPlan?.precioMensualidadUSD !== null
+    ? Number(currentModalPlan.precioMensualidadUSD)
+    : (currentModalPlan?.precioUSD !== undefined ? Number(currentModalPlan.precioUSD) : 10.0);
 
   // Cálculo en tiempo real para el modal
   const parsedMontoUSD = parseFloat(montoUSD) || 0;
@@ -228,12 +329,12 @@ export default function AdminPanel({
     if (!selectedMember) return;
 
     if (isNaN(parsedMontoUSD) || parsedMontoUSD <= 0) {
-      alert('Por favor ingresa un monto válido en Dólares ($ USD).');
+      alert(`Por favor ingresa un monto válido en ${monedaCobro === 'EUR' ? 'Euros (€ EUR)' : 'Dólares ($ USD)'}.`);
       return;
     }
 
     if (isNaN(parsedModalTasa) || parsedModalTasa <= 0) {
-      alert('Por favor ingresa una tasa de cambio válida (Bs. / USD).');
+      alert(`Por favor ingresa una tasa de cambio válida (Bs. / ${monedaCobro === 'EUR' ? 'EUR' : 'USD'}).`);
       return;
     }
 
@@ -259,20 +360,38 @@ export default function AdminPanel({
     }
 
     // Actualizar y propagar la tasa editada manualmente a la base de datos
-    setTasaDolar(parsedModalTasa);
+    if (monedaCobro === 'EUR') {
+      setTasaEuro(parsedModalTasa);
+    } else {
+      setTasaDolar(parsedModalTasa);
+    }
+
     if (onUpdateTasa) {
-      onUpdateTasa(parsedModalTasa);
+      onUpdateTasa({
+        tasaUSD: monedaCobro === 'USD' ? parsedModalTasa : tasaDolar,
+        tasaEUR: monedaCobro === 'EUR' ? parsedModalTasa : tasaEuro,
+        fecha: fechaTasas
+      });
     }
 
     setIsSubmitting(true);
 
-    // Se guarda estrictamente en USD, pasando los detalles de conversión, referencia y factura
+    const finalConcepto = conceptoCobro.trim() !== ''
+      ? conceptoCobro.trim()
+      : (tipoCobro === 'afiliacion'
+          ? 'Pago Único de Afiliación / Inscripción (Primeros 30 días)'
+          : 'Renovación Mensualidad Club Infantil (30 Días)');
+
+    // Se guarda pasando los detalles de conversión, referencia, factura y moneda
     onApprovePayment(selectedMember.id, parsedMontoUSD, { 
       metodo: metodoPago, 
       referencia: referenciaPago.trim(),
       numeroFactura: numeroFactura.trim(),
       tasaCambio: parsedModalTasa,
-      montoBs: calculadoBs
+      moneda: monedaCobro,
+      montoBs: calculadoBs,
+      concepto: finalConcepto,
+      tipoCobro
     });
 
     closePaymentModal();
@@ -291,20 +410,34 @@ export default function AdminPanel({
             Gestión de Membresías y Cobros
           </h1>
           <p className="text-sm text-neutral-600 mt-0.5">
-            Cobro en ventanilla en <strong className="text-neutral-900 font-bold">$ USD</strong> con conversión en tiempo real a <strong className="text-neutral-900 font-bold">Bolívares (Bs.)</strong>.
+            Cobro en ventanilla en <strong className="text-neutral-900 font-bold">$ USD</strong> y <strong className="text-neutral-900 font-bold">€ EUR</strong> con conversión en tiempo real a <strong className="text-neutral-900 font-bold">Bolívares (Bs.)</strong>.
           </p>
         </div>
 
-        {/* Acciones superiores: Tasa actual y Webhook */}
+        {/* Acciones superiores: Tasas actuales de Supabase y accesos */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Badge Informativo de la Tasa del Día */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
-            <Coins className="w-4 h-4 text-emerald-700" />
-            <div>
-              <span className="text-emerald-700 font-medium">Tasa del día: </span>
-              <span className="font-mono font-extrabold text-emerald-950">
-                Bs. {Number(tasaDolar).toLocaleString('es-VE', { minimumFractionDigits: 2 })} / USD
-              </span>
+          {/* Badge Informativo de las Tasas del Día (USD y EUR de public.tasas_cambio) */}
+          <div className="inline-flex items-center gap-2.5 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs shadow-2xs">
+            <Coins className="w-4 h-4 text-slate-700 shrink-0" />
+            <div className="flex items-center gap-2">
+              <span className="text-slate-600 font-medium">Tasas ({fechaTasas || 'Hoy'}):</span>
+              {tasaDolar && Number(tasaDolar) > 0 ? (
+                <>
+                  <span className="inline-flex items-center gap-1 font-mono font-bold text-emerald-900 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200">
+                    <DollarSign className="w-3 h-3 text-emerald-700" />
+                    Bs. {Number(tasaDolar).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="inline-flex items-center gap-1 font-mono font-bold text-blue-900 bg-blue-100/80 px-2 py-0.5 rounded border border-blue-200">
+                    <Euro className="w-3 h-3 text-blue-700" />
+                    Bs. {Number(tasaEuro).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                  </span>
+                </>
+              ) : (
+                <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                  <AlertTriangle className="w-3 h-3 text-amber-700" />
+                  Esperando permiso RLS en BD
+                </span>
+              )}
             </div>
           </div>
 
@@ -925,68 +1058,221 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              {/* Tasa del Dólar y Monto en USD (Lado a Lado) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Tasa del Dólar manual */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-bold text-neutral-700 uppercase tracking-wide">
-                      Tasa del Dólar (Bs./USD) *
-                    </label>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 font-bold text-xs">
-                      Bs.
+              {/* Selector de Modalidad: Afiliación Única vs Mensualidad Recurrente */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-neutral-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-corporate-600" />
+                    <span>Modalidad de Cobro *</span>
+                  </label>
+                  {isAutoDetected && (
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-emerald-600" />
+                      Detección Automática Activa
                     </span>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0.01"
-                      value={modalTasa}
-                      onChange={(e) => setModalTasa(e.target.value)}
-                      required
-                      placeholder="65.00"
-                      className="w-full pl-9 pr-3 py-2 bg-white border border-neutral-300 rounded-xl font-mono text-base font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-corporate-500"
-                    />
-                  </div>
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    Editable manualmente en cada cobro.
-                  </p>
+                  )}
                 </div>
 
-                {/* Monto a Registrar en Dólar Americano ($ USD) */}
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1 uppercase tracking-wide">
-                    Monto en Dólares ($ USD) *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-700 font-bold text-base">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      min="1"
-                      step="any"
-                      value={montoUSD}
-                      onChange={(e) => setMontoUSD(e.target.value)}
-                      required
-                      className="w-full pl-8 pr-14 py-2 bg-white border border-neutral-300 rounded-xl font-mono text-base font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      placeholder="25.00"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400">
-                      USD
-                    </span>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Opción 1: Afiliación Inicial */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTipoCobro('afiliacion')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      tipoCobro === 'afiliacion'
+                        ? 'bg-indigo-50/90 border-indigo-500 shadow-xs ring-2 ring-indigo-500/20'
+                        : 'bg-white border-neutral-200 hover:bg-neutral-50 text-neutral-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-2xs font-extrabold uppercase tracking-wider text-indigo-700 flex items-center gap-1">
+                        ★ 1er Cobro (Afiliación)
+                      </span>
+                      {tipoCobro === 'afiliacion' && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                      )}
+                    </div>
+                    <div className="mt-1 font-black font-mono text-base text-indigo-950">
+                      $ {modalPlanAfiliacion.toFixed(2)} <span className="text-xs font-sans font-normal text-indigo-700">USD</span>
+                    </div>
+                    <div className="text-[11px] text-indigo-800 mt-0.5 leading-snug">
+                      Pago único · Cubre primeros 30 días
+                    </div>
+                  </button>
+
+                  {/* Opción 2: Renovación Mensual */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTipoCobro('mensualidad')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      tipoCobro === 'mensualidad'
+                        ? 'bg-emerald-50/90 border-emerald-500 shadow-xs ring-2 ring-emerald-500/20'
+                        : 'bg-white border-neutral-200 hover:bg-neutral-50 text-neutral-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-2xs font-extrabold uppercase tracking-wider text-emerald-700 flex items-center gap-1">
+                        ⟳ Renovación Mensual
+                      </span>
+                      {tipoCobro === 'mensualidad' && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      )}
+                    </div>
+                    <div className="mt-1 font-black font-mono text-base text-emerald-950">
+                      $ {modalPlanMensualidad.toFixed(2)} <span className="text-xs font-sans font-normal text-emerald-700">USD</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-800 mt-0.5 leading-snug">
+                      Mensualidad · Extiende 30 días
+                    </div>
+                  </button>
+                </div>
+
+                {/* Banner Explicativo de la Detección */}
+                {tipoCobro === 'afiliacion' ? (
+                  <div className="bg-indigo-50 border border-indigo-200/80 rounded-xl p-2.5 text-xs text-indigo-950 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-bold">Pago Único de Afiliación Seleccionado:</strong>
+                      <p className="text-[11px] text-indigo-800 mt-0.5">
+                        El socio pagará la inscripción al club infantil. Su membresía quedará <strong className="uppercase">activa</strong> de inmediato y tendrá cobertura total por los primeros 30 días continuos.
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    Se almacena y registra en $ USD.
-                  </p>
+                ) : (
+                  <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-2.5 text-xs text-emerald-950 flex items-start gap-2">
+                    <Clock className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-bold">Renovación de Mensualidad Seleccionada:</strong>
+                      <p className="text-[11px] text-emerald-800 mt-0.5">
+                        Cuota regular de mantenimiento. Extiende la vigencia del carnet del socio por 30 días adicionales a partir de la fecha de cobro.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Campo de Concepto de Pago */}
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1 uppercase tracking-wide">
+                  Concepto en Recibo / Factura *
+                </label>
+                <input
+                  type="text"
+                  value={conceptoCobro}
+                  onChange={(e) => setConceptoCobro(e.target.value)}
+                  required
+                  placeholder="Ej: Pago Único de Afiliación / Inscripción (Primeros 30 días)"
+                  className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-corporate-500"
+                />
+              </div>
+
+              {/* Moneda de Referencia y Tasa de Cambio (Lado a Lado) */}
+              <div className="bg-neutral-50/80 p-3.5 rounded-2xl border border-neutral-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200/80 pb-2.5">
+                  <span className="text-xs font-bold text-neutral-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-corporate-600" />
+                    Moneda de Referencia para el Cobro *
+                  </span>
+                  {/* Selector de Moneda USD ($) / EUR (€) */}
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-neutral-300 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMonedaCobro('USD');
+                        setModalTasa(String(tasaDolar || DEFAULT_TASA_DOLAR));
+                        if (metodoPago === 'Efectivo €') setMetodoPago('Efectivo $');
+                      }}
+                      className={`px-3 py-1 text-xs font-extrabold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                        monedaCobro === 'USD'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+                      }`}
+                    >
+                      <DollarSign className="w-3.5 h-3.5" />
+                      <span>$ USD (Dólar)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMonedaCobro('EUR');
+                        setModalTasa(String(tasaEuro || DEFAULT_TASA_EURO));
+                        if (metodoPago === 'Efectivo $') setMetodoPago('Efectivo €');
+                      }}
+                      className={`px-3 py-1 text-xs font-extrabold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                        monedaCobro === 'EUR'
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+                      }`}
+                    >
+                      <Euro className="w-3.5 h-3.5" />
+                      <span>€ EUR (Euro)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Campos de Tasa y Monto */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Tasa de Cambio referencial aplicada */}
+                  <div>
+                    <label className="text-xs font-bold text-neutral-700 uppercase tracking-wide block mb-1">
+                      Tasa (Bs. / {monedaCobro === 'EUR' ? 'EUR €' : 'USD $'}) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 font-bold text-xs">
+                        Bs.
+                      </span>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0.01"
+                        value={modalTasa}
+                        onChange={(e) => setModalTasa(e.target.value)}
+                        required
+                        placeholder={monedaCobro === 'EUR' ? '70.00' : '65.00'}
+                        className="w-full pl-9 pr-3 py-2 bg-white border border-neutral-300 rounded-xl font-mono text-base font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-corporate-500"
+                      />
+                    </div>
+                    <p className="text-[11px] text-neutral-500 mt-1">
+                      Tasa en BD: <strong>Bs. {Number(monedaCobro === 'EUR' ? tasaEuro : tasaDolar).toFixed(2)}</strong> ({fechaTasas || 'Hoy'}).
+                    </p>
+                  </div>
+
+                  {/* Monto a Registrar */}
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-700 mb-1 uppercase tracking-wide">
+                      Monto a Cobrar ({monedaCobro === 'EUR' ? '€ EUR' : '$ USD'}) *
+                    </label>
+                    <div className="relative">
+                      <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-base ${
+                        monedaCobro === 'EUR' ? 'text-blue-700' : 'text-emerald-700'
+                      }`}>
+                        {monedaCobro === 'EUR' ? '€' : '$'}
+                      </span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="any"
+                        value={montoUSD}
+                        onChange={(e) => setMontoUSD(e.target.value)}
+                        required
+                        className="w-full pl-8 pr-14 py-2 bg-white border border-neutral-300 rounded-xl font-mono text-base font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-corporate-500"
+                        placeholder="25.00"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400">
+                        {monedaCobro}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-neutral-500 mt-1">
+                      Tarifa de membresía en {monedaCobro}.
+                    </p>
+                  </div>
                 </div>
               </div>
 
               {/* Selector de Forma de Cobro */}
               <div>
                 <label className="block text-xs font-bold text-neutral-700 mb-1.5 uppercase tracking-wide">
-                  Forma de Cobro *
+                  Forma de Cobro en Caja *
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {METODOS_PAGO.map((m) => {
@@ -997,13 +1283,22 @@ export default function AdminPanel({
                         type="button"
                         onClick={() => {
                           setMetodoPago(m.id);
+                          if (m.id === 'Efectivo €') {
+                            setMonedaCobro('EUR');
+                            setModalTasa(String(tasaEuro || DEFAULT_TASA_EURO));
+                          } else if (m.id === 'Efectivo $' || m.id === 'Sended') {
+                            setMonedaCobro('USD');
+                            setModalTasa(String(tasaDolar || DEFAULT_TASA_DOLAR));
+                          }
                           if (!m.requiresRef) {
                             setReferenciaPago('');
                           }
                         }}
-                        className={`py-2 px-2.5 text-xs font-semibold rounded-lg border text-center transition-all cursor-pointer ${
+                        className={`py-2 px-2.5 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
                           isSelected
-                            ? 'bg-corporate-50 border-corporate-600 text-corporate-900 font-bold shadow-2xs'
+                            ? m.id === 'Efectivo €'
+                              ? 'bg-blue-50 border-blue-600 text-blue-900 font-bold shadow-2xs'
+                              : 'bg-corporate-50 border-corporate-600 text-corporate-900 font-bold shadow-2xs'
                             : 'bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-50'
                         }`}
                       >
@@ -1014,7 +1309,7 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              {/* CARD DE CONVERSIÓN EN TIEMPO REAL A BOLÍVARES (Requerimiento explícito) */}
+              {/* CARD DE CONVERSIÓN EN TIEMPO REAL A BOLÍVARES / DIVISAS */}
               {isSelectedMethodBs ? (
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-xl p-4 shadow-2xs space-y-1 animate-in fade-in duration-150">
                   <div className="flex items-center justify-between">
@@ -1023,7 +1318,7 @@ export default function AdminPanel({
                       Monto a cobrar en Bolívares ({metodoPago})
                     </span>
                     <span className="text-2xs bg-emerald-200 text-emerald-900 font-mono px-2 py-0.5 rounded font-bold">
-                      Tasa: Bs. {parsedModalTasa.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      Tasa: Bs. {parsedModalTasa.toLocaleString('es-VE', { minimumFractionDigits: 2 })} / {monedaCobro}
                     </span>
                   </div>
 
@@ -1032,8 +1327,26 @@ export default function AdminPanel({
                   </div>
 
                   <div className="text-2xs text-emerald-800 flex items-center justify-between border-t border-emerald-200/80 pt-1.5 mt-1 font-medium">
-                    <span>Cálculo: ${parsedMontoUSD.toFixed(2)} USD × Bs. {parsedModalTasa.toFixed(2)}</span>
-                    <span className="font-bold">Guardará: ${parsedMontoUSD.toFixed(2)} USD</span>
+                    <span>
+                      Cálculo: {monedaCobro === 'EUR' ? '€' : '$'}{parsedMontoUSD.toFixed(2)} {monedaCobro} × Bs. {parsedModalTasa.toFixed(2)}
+                    </span>
+                    <span className="font-bold">
+                      Base registrada: {monedaCobro === 'EUR' ? '€' : '$'}{parsedMontoUSD.toFixed(2)} {monedaCobro}
+                    </span>
+                  </div>
+                </div>
+              ) : metodoPago === 'Efectivo €' ? (
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-3.5 space-y-1 text-xs text-blue-950 animate-in fade-in duration-150">
+                  <div className="font-bold flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Euro className="w-4 h-4 text-blue-700" />
+                      Cobro en Efectivo directo en Euros:
+                    </span>
+                    <span className="font-mono font-black text-sm text-blue-900">€ {parsedMontoUSD.toFixed(2)} EUR</span>
+                  </div>
+                  <div className="text-2xs text-blue-800 flex items-center justify-between border-t border-blue-200 pt-1 mt-1">
+                    <span>Equivalente en Bolívares según tasa (€):</span>
+                    <strong className="font-mono">Bs. {calculadoBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong>
                   </div>
                 </div>
               ) : metodoPago === 'Sended' ? (

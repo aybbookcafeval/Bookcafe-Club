@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Tasa referencial por defecto en Bs. por cada $1 USD
+// Tasa referencial por defecto en Bs. por cada $1 USD y €1 EUR
 export const DEFAULT_TASA_DOLAR = 65.0;
+export const DEFAULT_TASA_EURO = 70.0;
 
 // Configuración de Membresía oficial base
 export const DEFAULT_MEMBERSHIP_CONFIG = [
@@ -12,11 +13,13 @@ export const DEFAULT_MEMBERSHIP_CONFIG = [
     id: '1fd3cb06-6dc4-4393-bf5e-da17c60c7523',
     nombre: 'Membresía Oficial Club Infantil',
     codigo: 'VIP-10USD',
+    precioAfiliacionUSD: 15.0,
+    precioMensualidadUSD: 10.0,
     precioUSD: 10.0,
     duracionDias: 30,
     estado: 'activa',
     moneda: 'USD',
-    descripcion: 'Membresía estándar de $10 USD mensuales para niños socios del club con beneficios en restaurante y zona recreativa.',
+    descripcion: 'Membresía con cuota inicial de afiliación ($15 USD) que cubre los primeros 30 días, y mensualidad de mantenimiento ($10 USD / mes).',
     beneficios: [
       'Acceso libre e ilimitado al Área de Juegos Inflables',
       'Helado o postre infantil de cortesía en cada consumo familiar',

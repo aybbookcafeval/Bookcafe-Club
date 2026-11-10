@@ -1,0 +1,6 @@
+{
+  "summary": "Plan de implementación para el modelo de cuota única de afiliación (que cubre los primeros 30 días) y cobro recurrente de mensualidades posteriores, integrando la configuración de planes, la detección automática en Caja y la persistencia en Supabase.",
+  "updatedAt": "2026-11-06T20:21:37.858607350Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

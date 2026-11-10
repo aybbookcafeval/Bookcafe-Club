@@ -179,9 +179,13 @@ export default function PaymentReceiptModal({ transaction, member, onClose }) {
             </div>
 
             <div className="flex justify-between items-center py-1 border-b border-neutral-100">
-              <span className="text-neutral-600">Monto Base Registrado ($ USD):</span>
+              <span className="text-neutral-600">
+                Monto Base Registrado ({transaction.moneda === 'EUR' || transaction.metodoPago === 'Efectivo €' ? '€ EUR' : '$ USD'}):
+              </span>
               <span className="font-mono font-black text-sm text-neutral-900">
-                {formatUSD(transaction.montoUSD || 0)}
+                {transaction.moneda === 'EUR' || transaction.metodoPago === 'Efectivo €'
+                  ? `€ ${Number(transaction.montoUSD || 0).toFixed(2)}`
+                  : formatUSD(transaction.montoUSD || 0)}
               </span>
             </div>
 
@@ -189,7 +193,7 @@ export default function PaymentReceiptModal({ transaction, member, onClose }) {
               <div className="flex justify-between items-center py-1 border-b border-neutral-100 bg-neutral-50 px-2 rounded-lg">
                 <span className="text-neutral-600 text-2xs">Tasa de Cambio Oficial Aplicada:</span>
                 <span className="font-mono font-bold text-neutral-800 text-2xs">
-                  {transaction.tasaCambio.toFixed(2)} Bs. / $ USD
+                  {Number(transaction.tasaCambio).toFixed(2)} Bs. / {transaction.moneda === 'EUR' || transaction.metodoPago === 'Efectivo €' ? '€ EUR' : '$ USD'}
                 </span>
               </div>
             ) : null}

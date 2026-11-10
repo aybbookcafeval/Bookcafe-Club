@@ -10,12 +10,14 @@
 -- 1. ASEGURAR EXTENSIONES Y TABLAS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Tabla de membresías
+-- Tabla de membresías (Soporta cuota única de afiliación + mensualidad recurrente)
 CREATE TABLE IF NOT EXISTS public.membresias (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     codigo VARCHAR(50) UNIQUE NOT NULL,
     nombre VARCHAR(150) NOT NULL,
     precio_usd NUMERIC(10,2) NOT NULL DEFAULT 10.00,
+    precio_afiliacion_usd NUMERIC(10,2) NOT NULL DEFAULT 15.00,
+    precio_mensualidad_usd NUMERIC(10,2) NOT NULL DEFAULT 10.00,
     duracion_dias INTEGER NOT NULL DEFAULT 30,
     moneda VARCHAR(10) NOT NULL DEFAULT 'USD',
     estado VARCHAR(20) NOT NULL DEFAULT 'activa',
@@ -25,37 +27,37 @@ CREATE TABLE IF NOT EXISTS public.membresias (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabla de socios (niños afiliados)
+-- Asegurar columnas en bases de datos ya existentes
+ALTER TABLE public.membresias ADD COLUMN IF NOT EXISTS precio_afiliacion_usd NUMERIC(10,2) DEFAULT 15.00;
+ALTER TABLE public.membresias ADD COLUMN IF NOT EXISTS precio_mensualidad_usd NUMERIC(10,2) DEFAULT 10.00;
+
+-- Tabla de socios (niños afiliados - esquema normalizado sin duplicidad de pagos)
 CREATE TABLE IF NOT EXISTS public.socios (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    codigo VARCHAR(30) UNIQUE NOT NULL,
-    nombre_nino VARCHAR(150) NOT NULL,
+    codigo TEXT UNIQUE NOT NULL,
+    nombre_nino TEXT NOT NULL,
     foto_perfil TEXT,
     fecha_nacimiento DATE NOT NULL,
-    tutor_nombre VARCHAR(150) NOT NULL,
-    tutor_cedula VARCHAR(50),
-    parentesco_tutor VARCHAR(50) DEFAULT 'Padre',
-    tutor_telefono VARCHAR(50) NOT NULL,
-    estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
-    plan_membresia VARCHAR(50) DEFAULT 'Estándar',
+    tutor_nombre TEXT NOT NULL,
+    tutor_cedula TEXT,
+    parentesco_tutor TEXT DEFAULT 'Padre',
+    tutor_telefono TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'pendiente',
+    plan_membresia TEXT DEFAULT 'Estándar',
     fecha_inicio DATE,
     fecha_vencimiento DATE,
-    monto_pagado NUMERIC(12,2) DEFAULT 0.00,
-    metodo_pago VARCHAR(50) DEFAULT '',
-    referencia_pago VARCHAR(100) DEFAULT '',
-    numero_factura VARCHAR(50) DEFAULT '',
-    tasa_cambio NUMERIC(12,2),
-    monto_bs NUMERIC(14,2) DEFAULT 0.00,
-    alergias TEXT DEFAULT '',
-    notas TEXT DEFAULT '',
-    historial_pagos JSONB DEFAULT '[]'::jsonb,
-    membresia_id UUID REFERENCES public.membresias(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    alergias TEXT,
+    notas TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    membresia_id UUID REFERENCES public.membresias(id) ON DELETE SET NULL
 );
 
--- Si la columna historial_pagos no existe en socios, agregarla
-ALTER TABLE public.socios ADD COLUMN IF NOT EXISTS historial_pagos JSONB DEFAULT '[]'::jsonb;
+-- Índices recomendados para alto rendimiento
+CREATE INDEX IF NOT EXISTS idx_socios_codigo ON public.socios USING btree (codigo);
+CREATE INDEX IF NOT EXISTS idx_socios_tutor_cedula ON public.socios USING btree (tutor_cedula);
+CREATE INDEX IF NOT EXISTS idx_socios_estado ON public.socios USING btree (estado);
+CREATE INDEX IF NOT EXISTS idx_socios_membresia_id ON public.socios USING btree (membresia_id);
 
 -- Tabla de pagos (relacionada con socios mediante socio_id)
 CREATE TABLE IF NOT EXISTS public.pagos (
@@ -83,11 +85,35 @@ CREATE TABLE IF NOT EXISTS public.configuracion (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Tabla de tasas diarias de cambio (USD y EUR en la misma fila)
+CREATE TABLE IF NOT EXISTS public.tasas_cambio (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+    tasa_usd NUMERIC(10, 2) NOT NULL,
+    tasa_eur NUMERIC(10, 2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
+    CONSTRAINT tasas_cambio_pkey PRIMARY KEY (id),
+    CONSTRAINT tasas_cambio_fecha_key UNIQUE (fecha)
+);
+
+-- Índice para ordenar y consultar rápidamente el día más reciente
+CREATE INDEX IF NOT EXISTS idx_tasas_fecha ON public.tasas_cambio (fecha DESC);
+
 -- 2. HABILITAR POLÍTICAS DE ACCESO TOTAL (RLS) PARA LA APP
 ALTER TABLE public.socios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.membresias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pagos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.configuracion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasas_cambio ENABLE ROW LEVEL SECURITY;
+
+-- Políticas para tasas_cambio
+DROP POLICY IF EXISTS "Allow public full access tasas_cambio" ON public.tasas_cambio;
+CREATE POLICY "Allow public full access tasas_cambio" 
+ON public.tasas_cambio 
+FOR ALL 
+TO anon, authenticated 
+USING (true) 
+WITH CHECK (true);
 
 -- Políticas para socios (Lectura, Inserción, Actualización y Eliminación pública/anónima)
 DROP POLICY IF EXISTS "Allow public full access socios" ON public.socios;
@@ -127,21 +153,30 @@ WITH CHECK (true);
 
 -- Tasa referencial por defecto
 INSERT INTO public.configuracion (clave, valor)
-VALUES ('tasa_dolar', '65.00')
+VALUES ('tasa_dolar', '65.00'), ('tasa_euro', '70.00')
 ON CONFLICT (clave) DO NOTHING;
 
--- 3. PLAN DE MEMBRESÍA BASE
+-- Registro de tasas del día (USD y EUR)
+INSERT INTO public.tasas_cambio (fecha, tasa_usd, tasa_eur)
+VALUES (CURRENT_DATE, 65.00, 70.00)
+ON CONFLICT (fecha) DO UPDATE SET
+    tasa_usd = EXCLUDED.tasa_usd,
+    tasa_eur = EXCLUDED.tasa_eur;
+
+-- 3. PLAN DE MEMBRESÍA BASE (Con cuota única de afiliación y mensualidad recurrente)
 INSERT INTO public.membresias (
-    id, codigo, nombre, precio_usd, duracion_dias, moneda, estado, descripcion, beneficios
+    id, codigo, nombre, precio_usd, precio_afiliacion_usd, precio_mensualidad_usd, duracion_dias, moneda, estado, descripcion, beneficios
 ) VALUES (
     '1fd3cb06-6dc4-4393-bf5e-da17c60c7523',
     'VIP-10USD',
     'Membresía Oficial Club Infantil',
     10.00,
+    15.00,
+    10.00,
     30,
     'USD',
     'activa',
-    'Membresía estándar de $10 USD mensuales para niños socios del club.',
+    'Membresía con cuota única de afiliación ($15.00 USD) que cubre los primeros 30 días, y mensualidad de renovación recurrente ($10.00 USD).',
     '[
       "Acceso libre al Área de Juegos Inflables",
       "Helado o postre infantil de cortesía en consumo familiar",
@@ -154,7 +189,10 @@ ON CONFLICT (id) DO UPDATE SET
     codigo = EXCLUDED.codigo,
     nombre = EXCLUDED.nombre,
     precio_usd = EXCLUDED.precio_usd,
+    precio_afiliacion_usd = EXCLUDED.precio_afiliacion_usd,
+    precio_mensualidad_usd = EXCLUDED.precio_mensualidad_usd,
     duracion_dias = EXCLUDED.duracion_dias,
+    descripcion = EXCLUDED.descripcion,
     beneficios = EXCLUDED.beneficios;
 
 -- ==============================================================================

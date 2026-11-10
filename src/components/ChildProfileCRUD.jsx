@@ -240,9 +240,6 @@ export default function ChildProfileCRUD({
 
   // Abrir Modal de Creación
   const handleOpenCreate = () => {
-    const today = new Date();
-    const expiry = new Date(today);
-    expiry.setDate(expiry.getDate() + 30);
     const defaultAvatar = PRESET_AVATARS[afiliados.length % PRESET_AVATARS.length].url;
 
     setFormData({
@@ -255,10 +252,10 @@ export default function ChildProfileCRUD({
       parentescoTutor: 'Madre',
       tutorTelefono: '',
       estado: 'pendiente',
-      fechaInicio: today.toISOString().split('T')[0],
-      fechaVencimiento: expiry.toISOString().split('T')[0],
+      fechaInicio: '',
+      fechaVencimiento: '',
       montoPagado: '0',
-      metodoPago: 'Pago Móvil',
+      metodoPago: '',
       referenciaPago: '',
       alergias: 'Ninguna',
       notas: ''
@@ -309,12 +306,12 @@ export default function ChildProfileCRUD({
       tutorCedula: formData.tutorCedula.trim(),
       parentescoTutor: formData.parentescoTutor || 'Padre / Madre',
       tutorTelefono: formData.tutorTelefono.trim(),
-      estado: formData.estado,
-      fechaInicio: formData.fechaInicio,
-      fechaVencimiento: formData.fechaVencimiento,
-      montoPagado: parseFloat(formData.montoPagado) || 0,
-      metodoPago: formData.metodoPago,
-      referenciaPago: formData.referenciaPago.trim(),
+      estado: isNewMember ? 'pendiente' : (formData.estado || editingMember.estado || 'pendiente'),
+      fechaInicio: isNewMember ? null : (formData.fechaInicio || editingMember.fechaInicio || null),
+      fechaVencimiento: isNewMember ? null : (formData.fechaVencimiento || editingMember.fechaVencimiento || null),
+      montoPagado: isNewMember ? 0 : (Number(editingMember.montoPagado) || 0),
+      metodoPago: isNewMember ? '' : (editingMember.metodoPago || ''),
+      referenciaPago: isNewMember ? '' : (editingMember.referenciaPago || ''),
       alergias: formData.alergias.trim() || 'Ninguna',
       notas: formData.notas.trim()
     };
@@ -1255,76 +1252,69 @@ export default function ChildProfileCRUD({
                 </div>
               </div>
 
-              {/* Fechas de Vigencia y Cobro */}
+              {/* Información de Vigencia y Membresía */}
               <div className="pt-2 border-t border-neutral-200">
-                <span className="font-bold text-neutral-700 uppercase tracking-wide text-2xs block mb-2">
-                  Vigencia y Cuota
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block font-medium text-neutral-600 mb-1">Fecha de Inicio</label>
-                    <input
-                      type="date"
-                      value={formData.fechaInicio}
-                      onChange={(e) => setFormData({ ...formData, fechaInicio: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-neutral-900 font-mono"
-                    />
+                {isNewMember ? (
+                  <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-4 flex items-start gap-3 text-xs text-indigo-950">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-bold text-indigo-950 flex items-center gap-2 flex-wrap">
+                        <span>Membresía & Fechas de Cobertura</span>
+                        <span className="text-2xs font-extrabold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full uppercase">
+                          Estado Inicial: Pendiente
+                        </span>
+                      </div>
+                      <p className="text-indigo-900/80 leading-relaxed text-[11px]">
+                        Las fechas de membresía (inicio y 30 días de vigencia) se fijarán automáticamente cuando se realice el <strong>primer pago (Afiliación)</strong> en el módulo de <strong>Caja</strong>.
+                      </p>
+                    </div>
                   </div>
+                ) : (
+                  <div>
+                    <span className="font-bold text-neutral-700 uppercase tracking-wide text-2xs block mb-2">
+                      Vigencia de Membresía
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block font-medium text-neutral-600 mb-1">Estado de Membresía</label>
+                        <select
+                          value={formData.estado}
+                          onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-neutral-900 font-semibold uppercase text-xs focus:outline-none focus:ring-2 focus:ring-corporate-500"
+                        >
+                          <option value="pendiente">Pendiente (Sin Cobro)</option>
+                          <option value="activa">Activa</option>
+                          <option value="vencida">Vencida</option>
+                        </select>
+                      </div>
 
-                  <div>
-                    <label className="block font-medium text-neutral-600 mb-1">Fecha de Vencimiento</label>
-                    <input
-                      type="date"
-                      value={formData.fechaVencimiento}
-                      onChange={(e) => setFormData({ ...formData, fechaVencimiento: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-neutral-900 font-mono"
-                    />
-                  </div>
+                      <div>
+                        <label className="block font-medium text-neutral-600 mb-1">Fecha de Inicio</label>
+                        <input
+                          type="date"
+                          value={formData.fechaInicio}
+                          onChange={(e) => setFormData({ ...formData, fechaInicio: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-neutral-900 font-mono focus:outline-none focus:ring-2 focus:ring-corporate-500"
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block font-medium text-neutral-600 mb-1">Monto Pagado ($ USD)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      placeholder="25.00"
-                      value={formData.montoPagado}
-                      onChange={(e) => setFormData({ ...formData, montoPagado: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-neutral-900 font-mono font-bold"
-                    />
+                      <div>
+                        <label className="block font-medium text-neutral-600 mb-1">Fecha de Vencimiento</label>
+                        <input
+                          type="date"
+                          value={formData.fechaVencimiento}
+                          onChange={(e) => setFormData({ ...formData, fechaVencimiento: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-neutral-900 font-mono focus:outline-none focus:ring-2 focus:ring-corporate-500"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-2xs text-neutral-500 mt-2">
+                      * Los montos, facturas y formas de pago se registran y auditan exclusivamente a través del módulo de Caja.
+                    </p>
                   </div>
-                </div>
-
-                {/* Forma de Pago y Referencia */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                  <div>
-                    <label className="block font-medium text-neutral-600 mb-1">Forma de Pago</label>
-                    <select
-                      value={formData.metodoPago}
-                      onChange={(e) => setFormData({ ...formData, metodoPago: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl text-neutral-900 font-semibold"
-                    >
-                      <option value="Pago Móvil">Pago Móvil (Requiere Ref.)</option>
-                      <option value="Tarjeta">Tarjeta (Requiere Ref.)</option>
-                      <option value="Transferencia">Transferencia (Requiere Ref.)</option>
-                      <option value="Sended">Sended (Requiere Ref.)</option>
-                      <option value="Efectivo $">Efectivo ($ USD)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block font-medium text-neutral-600 mb-1">
-                      Nro. de Referencia {formData.metodoPago !== 'Efectivo $' ? '*' : '(Opcional)'}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.referenciaPago}
-                      onChange={(e) => setFormData({ ...formData, referenciaPago: e.target.value })}
-                      placeholder={formData.metodoPago !== 'Efectivo $' ? 'Ej: 894120 / Lote / Comprobante' : 'Opcional'}
-                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-xl font-mono text-neutral-900"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Alergias y Restricciones Dietéticas */}
